@@ -3509,6 +3509,79 @@ input[type="checkbox"]:focus-visible {
     margin-bottom: 10px;
 }
 
+/* Comparison summary: Previsto vs Pago */
+.finance-bills-comparison {
+    display: flex;
+    gap: 1px;
+    background: var(--color-border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    margin-bottom: 14px;
+}
+
+.finance-compare-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 8px;
+    background: var(--color-bg);
+}
+
+.finance-compare-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+}
+
+.finance-compare-value {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.finance-compare-diff.over .finance-compare-value {
+    color: #ef4444;
+}
+
+.finance-compare-diff.under .finance-compare-value {
+    color: #22c55e;
+}
+
+.finance-compare-diff.exact .finance-compare-value {
+    color: var(--color-text-muted);
+}
+
+/* Pay modal bill info */
+.finance-pay-bill-name {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.finance-pay-budget {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    margin-bottom: 16px;
+}
+
+/* Bill card: dual amount display */
+.finance-bill-paid-value {
+    font-size: 0.9rem;
+    font-weight: 600;
+    display: block;
+}
+
+.finance-bill-budget-value {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    text-decoration: line-through;
+    display: block;
+}
+
 .finance-bill-card {
     display: flex;
     align-items: center;

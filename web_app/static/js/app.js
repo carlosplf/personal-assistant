@@ -3553,6 +3553,30 @@
         var html = '<div class="finance-section-header"><h3 class="finance-section-title">📋 Contas Fixas</h3>' +
             '<span class="finance-section-badge">' + paidCount + '/' + bills.length + ' pagas</span></div>' +
             '<div class="finance-progress-bar"><div class="finance-progress-fill" style="width:' + pct + '%"></div></div>';
+
+        // Comparison card: Previsto vs Pago
+        if (totals && totals.total_budget > 0) {
+            var diff = totals.total_paid - totals.total_budget;
+            var diffAbs = Math.abs(diff);
+            var diffClass = diff > 0 ? 'over' : diff < 0 ? 'under' : 'exact';
+            var diffLabel = diff > 0 ? 'acima do previsto' : diff < 0 ? 'abaixo do previsto' : 'exatamente como previsto';
+            var pendingBudget = totals.total_budget - totals.total_paid;
+            html += '<div class="finance-bills-comparison">' +
+                '<div class="finance-compare-item">' +
+                '<span class="finance-compare-label">Previsto</span>' +
+                '<span class="finance-compare-value">' + formatBRL(totals.total_budget) + '</span>' +
+                '</div>' +
+                '<div class="finance-compare-item">' +
+                '<span class="finance-compare-label">Pago</span>' +
+                '<span class="finance-compare-value">' + formatBRL(totals.total_paid) + '</span>' +
+                '</div>' +
+                '<div class="finance-compare-item finance-compare-diff ' + diffClass + '">' +
+                '<span class="finance-compare-label">' + (paidCount === bills.length ? 'Diferença' : 'Restante') + '</span>' +
+                '<span class="finance-compare-value">' + (paidCount === bills.length ? (diff >= 0 ? '+' : '-') + ' ' + formatBRL(diffAbs) : formatBRL(pendingBudget)) + '</span>' +
+                '</div>' +
+                '</div>';
+        }
+
         sorted.forEach(function (bill) {
             var badgeClass = 'badge-pending';
             var badgeText = 'Pendente';
@@ -3569,7 +3593,18 @@
                 dueMeta = (dueMeta ? dueMeta + ' · ' : '') + bill.category;
             }
 
-            html += '<div class="finance-bill-card' + (bill.paid ? ' paid' : '') + '" data-bill-id="' + bill.id + '">' +
+            // Show budget; if paid, also show paid_amount when different
+            var amountHtml = '';
+            if (bill.paid && bill.paid_amount > 0 && bill.paid_amount !== bill.budget) {
+                amountHtml = '<div class="finance-bill-amount">' +
+                    '<span class="finance-bill-paid-value">' + formatBRL(bill.paid_amount) + '</span>' +
+                    '<span class="finance-bill-budget-value">' + formatBRL(bill.budget) + '</span>' +
+                    '</div>';
+            } else {
+                amountHtml = '<div class="finance-bill-amount">' + formatBRL(bill.paid ? (bill.paid_amount || bill.budget) : bill.budget) + '</div>';
+            }
+
+            html += '<div class="finance-bill-card' + (bill.paid ? ' paid' : '') + '" data-bill-id="' + bill.id + '" data-bill-budget="' + bill.budget + '" data-bill-name="' + escapeHtml(bill.bill_name) + '">' +
                 '<div class="finance-bill-check' + (bill.paid ? ' done' : '') + '" data-bill-id="' + bill.id + '">' +
                 (bill.paid ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '') +
                 '</div>' +
@@ -3577,7 +3612,7 @@
                 '<div class="finance-bill-name">' + escapeHtml(bill.bill_name) + '</div>' +
                 (dueMeta ? '<div class="finance-bill-meta">' + dueMeta + '</div>' : '') +
                 '</div>' +
-                '<div class="finance-bill-amount">' + formatBRL(bill.budget) + '</div>' +
+                amountHtml +
                 '<span class="finance-badge ' + badgeClass + '">' + badgeText + '</span>' +
                 '<button class="finance-bill-delete" data-bill-id="' + bill.id + '" title="Excluir">' +
                 '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
@@ -3612,14 +3647,28 @@
     async function toggleBillPaid(billId) {
         var card = financeBillsEl.querySelector('[data-bill-id="' + billId + '"].finance-bill-card');
         var isPaid = card && card.classList.contains('paid');
-        try {
-            await apiRequest('PATCH', '/api/finance/bills/' + billId, {
-                paid: !isPaid,
-                paid_amount: !isPaid ? undefined : 0
-            });
-            loadFinanceDashboard();
-        } catch (err) {
-            showToast('Erro: ' + err.message);
+        if (isPaid) {
+            // Unmarking — just toggle off
+            try {
+                await apiRequest('PATCH', '/api/finance/bills/' + billId, {
+                    paid: false,
+                    paid_amount: 0
+                });
+                loadFinanceDashboard();
+            } catch (err) {
+                showToast('Erro: ' + err.message);
+            }
+        } else {
+            // Marking as paid — open modal to enter actual amount
+            var billName = card ? card.dataset.billName : '';
+            var billBudget = card ? parseFloat(card.dataset.billBudget) : 0;
+            document.getElementById('pay-bill-name').textContent = billName;
+            document.getElementById('pay-bill-budget').textContent = 'Previsto: ' + formatBRL(billBudget);
+            document.getElementById('pay-bill-id').value = billId;
+            var amountInput = document.getElementById('pay-amount');
+            amountInput.value = billBudget.toFixed(2);
+            document.getElementById('finance-pay-overlay').classList.add('visible');
+            setTimeout(function () { amountInput.select(); }, 100);
         }
     }
 
@@ -3838,6 +3887,42 @@
         } finally {
             billSubmitBtn.disabled = false;
             billSubmitBtn.textContent = 'Registrar Conta';
+        }
+    });
+
+    // ---- Pay bill modal ----
+    var payOverlay = document.getElementById('finance-pay-overlay');
+    var payForm = document.getElementById('finance-pay-form');
+    var paySubmitBtn = document.getElementById('pay-submit-btn');
+    var payCloseBtn = document.getElementById('finance-pay-close');
+
+    payCloseBtn.addEventListener('click', function () {
+        payOverlay.classList.remove('visible');
+    });
+
+    payOverlay.addEventListener('click', function (e) {
+        if (e.target === payOverlay) payOverlay.classList.remove('visible');
+    });
+
+    payForm.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        paySubmitBtn.disabled = true;
+        paySubmitBtn.textContent = 'Registrando…';
+        var billId = document.getElementById('pay-bill-id').value;
+        var paidAmount = parseFloat(document.getElementById('pay-amount').value);
+        try {
+            await apiRequest('PATCH', '/api/finance/bills/' + billId, {
+                paid: true,
+                paid_amount: paidAmount
+            });
+            payOverlay.classList.remove('visible');
+            showToast('Pagamento registrado ✓');
+            loadFinanceDashboard();
+        } catch (err) {
+            showToast('Erro: ' + err.message);
+        } finally {
+            paySubmitBtn.disabled = false;
+            paySubmitBtn.textContent = 'Confirmar Pagamento';
         }
     });
 
