@@ -1,10 +1,27 @@
 from __future__ import annotations
 
 import datetime
+import os
 import re
 
-from assistant_connector.tools.health_tools import _health_store, _read_optional_boolean
+from assistant_connector.tools.health_tools import _read_optional_boolean
+from assistant_connector.finance_store import FinanceStore
 from utils.timezone_utils import today_in_configured_timezone, today_iso_in_configured_timezone
+
+_default_db_path = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), "assistant_memory.sqlite3"
+)
+_finance_store: FinanceStore | None = None
+
+
+def _get_finance_store() -> FinanceStore:
+    global _finance_store
+    if _finance_store is None:
+        _finance_store = FinanceStore(
+            db_path=os.getenv("ASSISTANT_MEMORY_PATH", _default_db_path),
+            encryption_key=os.getenv("CREDENTIAL_ENCRYPTION_KEY", ""),
+        )
+    return _finance_store
 
 _CATEGORY_KEYWORDS = {
     "Alimentação": ("mercado", "restaurante", "ifood", "lanche", "almoço", "jantar", "cafe"),
@@ -71,7 +88,7 @@ def register_expense(arguments, context):
         raise ValueError("expense_date must be a valid ISO date (YYYY-MM-DD)")
 
     category = _normalize_expense_category(arguments.get("category"), description)
-    expense = _health_store.create_expense(
+    expense = _get_finance_store().create_expense(
         user_id=context.user_id,
         name=description,
         amount=amount,
@@ -120,7 +137,7 @@ def analyze_expenses(arguments, context):
     month_key = target_date.strftime("%Y-%m")
     month_start, month_end = _month_bounds(target_date)
 
-    expenses = _health_store.list_expenses_by_date_range(
+    expenses = _get_finance_store().list_expenses_by_date_range(
         user_id=context.user_id,
         start_date=month_start.isoformat(),
         end_date=month_end.isoformat(),
@@ -232,7 +249,7 @@ def list_bills(arguments, context):
         unpaid_only = bool(unpaid_only_raw)
 
     reference_month = target_date.strftime("%Y-%m")
-    bills = _health_store.list_bills_by_month(
+    bills = _get_finance_store().list_bills_by_month(
         user_id=context.user_id,
         reference_month=reference_month,
         unpaid_only=unpaid_only,
@@ -257,7 +274,7 @@ def pay_bill(arguments, context):
         if normalized_paid_amount < 0:
             raise ValueError("paid_amount must be >= 0")
 
-    result = _health_store.update_bill_payment(
+    result = _get_finance_store().update_bill_payment(
         user_id=context.user_id,
         bill_id=bill_id,
         paid=True,
@@ -281,7 +298,7 @@ def analyze_bills(arguments, context):
         target_date = today_in_configured_timezone().replace(day=1)
 
     reference_month = target_date.strftime("%Y-%m")
-    bills = _health_store.list_bills_by_month(
+    bills = _get_finance_store().list_bills_by_month(
         user_id=context.user_id,
         reference_month=reference_month,
         unpaid_only=False,
@@ -346,7 +363,7 @@ def list_expenses(arguments, context):
             raise ValueError("month must follow YYYY-MM")
     else:
         month_value = today_in_configured_timezone().strftime("%Y-%m")
-    expenses = _health_store.list_expenses_by_month(
+    expenses = _get_finance_store().list_expenses_by_month(
         user_id=context.user_id,
         month=month_value,
     )
@@ -372,7 +389,7 @@ def edit_expense(arguments, context):
             kwargs["date"] = d[:10]
     if not kwargs:
         raise ValueError("At least one field to update is required")
-    result = _health_store.update_expense(user_id=context.user_id, expense_id=expense_id, **kwargs)
+    result = _get_finance_store().update_expense(user_id=context.user_id, expense_id=expense_id, **kwargs)
     return {"status": "updated", "expense": result}
 
 
@@ -380,7 +397,7 @@ def delete_expense(arguments, context):
     expense_id = str(arguments.get("expense_id", "")).strip()
     if not expense_id:
         raise ValueError("expense_id is required")
-    deleted = _health_store.delete_expense(user_id=context.user_id, expense_id=expense_id)
+    deleted = _get_finance_store().delete_expense(user_id=context.user_id, expense_id=expense_id)
     if not deleted:
         raise ValueError(f"Expense {expense_id!r} not found")
     return {"status": "deleted", "expense_id": expense_id}
@@ -413,7 +430,7 @@ def register_bill(arguments, context):
         ref_month = str(ref_month).strip()[:7]
     else:
         ref_month = today_in_configured_timezone().strftime("%Y-%m")
-    result = _health_store.create_bill(
+    result = _get_finance_store().create_bill(
         user_id=context.user_id,
         bill_name=bill_name,
         budget=budget,
@@ -448,7 +465,7 @@ def edit_bill(arguments, context):
         kwargs["paid_amount"] = float(str(arguments["paid_amount"]).replace(",", "."))
     if not kwargs:
         raise ValueError("At least one field to update is required")
-    result = _health_store.update_bill(user_id=context.user_id, bill_id=bill_id, **kwargs)
+    result = _get_finance_store().update_bill(user_id=context.user_id, bill_id=bill_id, **kwargs)
     return {"status": "updated", "bill": result}
 
 
@@ -456,7 +473,7 @@ def delete_bill(arguments, context):
     bill_id = str(arguments.get("bill_id", "")).strip()
     if not bill_id:
         raise ValueError("bill_id is required")
-    deleted = _health_store.delete_bill(user_id=context.user_id, bill_id=bill_id)
+    deleted = _get_finance_store().delete_bill(user_id=context.user_id, bill_id=bill_id)
     if not deleted:
         raise ValueError(f"Bill {bill_id!r} not found")
     return {"status": "deleted", "bill_id": bill_id}

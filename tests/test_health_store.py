@@ -179,6 +179,24 @@ class TestExercises:
         assert ex["done"] is True
         assert "id" in ex
 
+    def test_create_exercise_with_effort_level(self, store):
+        ex = store.create_exercise(user_id=USER, activity="Musculação", calories=250, date="2025-06-01", effort_level=8)
+        assert ex["effort_level"] == 8
+
+    def test_create_exercise_without_effort_level(self, store):
+        ex = store.create_exercise(user_id=USER, activity="Corrida", calories=300, date="2025-06-02")
+        assert ex["effort_level"] is None
+
+    def test_update_exercise_effort_level(self, store):
+        ex = store.create_exercise(user_id=USER, activity="Bike", calories=200, date="2025-06-01")
+        updated = store.update_exercise(user_id=USER, exercise_id=ex["id"], effort_level=5)
+        assert updated["effort_level"] == 5
+
+    def test_list_exercises_returns_effort_level(self, store):
+        store.create_exercise(user_id=USER, activity="Caminhada", calories=150, date="2025-06-01", effort_level=3)
+        exs = store.list_exercises_by_date_range(user_id=USER, start_date="2025-06-01", end_date="2025-06-01")
+        assert exs[0]["effort_level"] == 3
+
     def test_update_exercise_done(self, store):
         ex = store.create_exercise(user_id=USER, activity="Yoga", calories=120, date="2025-06-01", done=False)
         updated = store.update_exercise(user_id=USER, exercise_id=ex["id"], done=True)
@@ -210,41 +228,49 @@ class TestExercises:
 # ---- Expenses ----
 
 class TestExpenses:
-    def test_create_expense(self, store):
-        exp = store.create_expense(user_id=USER, name="Mercado", amount=150.50, date="2025-06-01")
+    @pytest.fixture
+    def fstore(self, tmp_path):
+        from assistant_connector.finance_store import FinanceStore
+        return FinanceStore(
+            db_path=str(tmp_path / "test_finance.sqlite3"),
+            encryption_key="_mtPmvrlH22JoC3o3KLUObMoMqYxlXs7aeaNO4kHdoE=",
+        )
+
+    def test_create_expense(self, fstore):
+        exp = fstore.create_expense(user_id=USER, name="Mercado", amount=150.50, date="2025-06-01")
         assert exp["name"] == "Mercado"
         assert exp["amount"] == 150.50
         assert "id" in exp
 
-    def test_list_expenses_by_date_range(self, store):
-        store.create_expense(user_id=USER, name="Aluguel", amount=1200.0, date="2025-06-01")
-        store.create_expense(user_id=USER, name="Internet", amount=80.0, date="2025-07-01")
-        exps = store.list_expenses_by_date_range(user_id=USER, start_date="2025-06-01", end_date="2025-06-30")
+    def test_list_expenses_by_date_range(self, fstore):
+        fstore.create_expense(user_id=USER, name="Aluguel", amount=1200.0, date="2025-06-01")
+        fstore.create_expense(user_id=USER, name="Internet", amount=80.0, date="2025-07-01")
+        exps = fstore.list_expenses_by_date_range(user_id=USER, start_date="2025-06-01", end_date="2025-06-30")
         assert len(exps) == 1
         assert exps[0]["name"] == "Aluguel"
 
-    def test_expenses_isolated_by_user(self, store):
-        store.create_expense(user_id=USER, name="Gym", amount=100.0, date="2025-06-01")
-        exps = store.list_expenses_by_date_range(user_id=OTHER_USER, start_date="2025-06-01", end_date="2025-06-30")
+    def test_expenses_isolated_by_user(self, fstore):
+        fstore.create_expense(user_id=USER, name="Gym", amount=100.0, date="2025-06-01")
+        exps = fstore.list_expenses_by_date_range(user_id=OTHER_USER, start_date="2025-06-01", end_date="2025-06-30")
         assert exps == []
 
-    def test_invalid_amount_raises(self, store):
+    def test_invalid_amount_raises(self, fstore):
         with pytest.raises(ValueError):
-            store.create_expense(user_id=USER, name="Bad", amount=-50.0, date="2025-06-01")
+            fstore.create_expense(user_id=USER, name="Bad", amount=-50.0, date="2025-06-01")
 
-    def test_delete_expense(self, store):
-        exp = store.create_expense(user_id=USER, name="ToDelete", amount=30.0, date="2025-06-01")
-        assert store.delete_expense(user_id=USER, expense_id=exp["id"]) is True
-        assert store.list_expenses_by_date_range(user_id=USER, start_date="2025-06-01", end_date="2025-06-30") == []
+    def test_delete_expense(self, fstore):
+        exp = fstore.create_expense(user_id=USER, name="ToDelete", amount=30.0, date="2025-06-01")
+        assert fstore.delete_expense(user_id=USER, expense_id=exp["id"]) is True
+        assert fstore.list_expenses_by_date_range(user_id=USER, start_date="2025-06-01", end_date="2025-06-30") == []
 
-    def test_delete_expense_wrong_user(self, store):
-        exp = store.create_expense(user_id=USER, name="Mine", amount=30.0, date="2025-06-01")
-        assert store.delete_expense(user_id=OTHER_USER, expense_id=exp["id"]) is False
+    def test_delete_expense_wrong_user(self, fstore):
+        exp = fstore.create_expense(user_id=USER, name="Mine", amount=30.0, date="2025-06-01")
+        assert fstore.delete_expense(user_id=OTHER_USER, expense_id=exp["id"]) is False
 
-    def test_list_expenses_by_month(self, store):
-        store.create_expense(user_id=USER, name="June", amount=50.0, date="2025-06-15")
-        store.create_expense(user_id=USER, name="July", amount=60.0, date="2025-07-01")
-        exps = store.list_expenses_by_month(user_id=USER, month="2025-06")
+    def test_list_expenses_by_month(self, fstore):
+        fstore.create_expense(user_id=USER, name="June", amount=50.0, date="2025-06-15")
+        fstore.create_expense(user_id=USER, name="July", amount=60.0, date="2025-07-01")
+        exps = fstore.list_expenses_by_month(user_id=USER, month="2025-06")
         assert len(exps) == 1
         assert exps[0]["name"] == "June"
 
@@ -252,37 +278,45 @@ class TestExpenses:
 # ---- Bills ----
 
 class TestBills:
-    def test_create_bill(self, store):
-        bill = store.create_bill(
+    @pytest.fixture
+    def fstore(self, tmp_path):
+        from assistant_connector.finance_store import FinanceStore
+        return FinanceStore(
+            db_path=str(tmp_path / "test_finance.sqlite3"),
+            encryption_key="_mtPmvrlH22JoC3o3KLUObMoMqYxlXs7aeaNO4kHdoE=",
+        )
+
+    def test_create_bill(self, fstore):
+        bill = fstore.create_bill(
             user_id=USER, bill_name="Aluguel", budget=1500.0, reference_month="2025-06",
         )
         assert bill["bill_name"] == "Aluguel"
         assert bill["paid"] is False
         assert "id" in bill
 
-    def test_list_bills_by_month(self, store):
-        store.create_bill(user_id=USER, bill_name="Internet", budget=100.0, reference_month="2025-06")
-        store.create_bill(user_id=USER, bill_name="Streaming", budget=50.0, reference_month="2025-07")
-        bills = store.list_bills_by_month(user_id=USER, reference_month="2025-06")
+    def test_list_bills_by_month(self, fstore):
+        fstore.create_bill(user_id=USER, bill_name="Internet", budget=100.0, reference_month="2025-06")
+        fstore.create_bill(user_id=USER, bill_name="Streaming", budget=50.0, reference_month="2025-07")
+        bills = fstore.list_bills_by_month(user_id=USER, reference_month="2025-06")
         assert len(bills) == 1
         assert bills[0]["bill_name"] == "Internet"
 
-    def test_update_bill_payment(self, store):
-        bill = store.create_bill(user_id=USER, bill_name="Water", budget=80.0, reference_month="2025-06")
-        updated = store.update_bill_payment(user_id=USER, bill_id=bill["id"], paid=True, paid_amount=80.0)
+    def test_update_bill_payment(self, fstore):
+        bill = fstore.create_bill(user_id=USER, bill_name="Water", budget=80.0, reference_month="2025-06")
+        updated = fstore.update_bill_payment(user_id=USER, bill_id=bill["id"], paid=True, paid_amount=80.0)
         assert updated["paid"] is True
         assert updated["paid_amount"] == 80.0
 
-    def test_update_bill_not_found(self, store):
+    def test_update_bill_not_found(self, fstore):
         with pytest.raises(ValueError):
-            store.update_bill_payment(user_id=USER, bill_id="bad-id", paid=True)
+            fstore.update_bill_payment(user_id=USER, bill_id="bad-id", paid=True)
 
-    def test_delete_bill(self, store):
-        bill = store.create_bill(user_id=USER, bill_name="OldBill", budget=50.0, reference_month="2025-06")
-        assert store.delete_bill(user_id=USER, bill_id=bill["id"]) is True
-        assert store.list_bills_by_month(user_id=USER, reference_month="2025-06") == []
+    def test_delete_bill(self, fstore):
+        bill = fstore.create_bill(user_id=USER, bill_name="OldBill", budget=50.0, reference_month="2025-06")
+        assert fstore.delete_bill(user_id=USER, bill_id=bill["id"]) is True
+        assert fstore.list_bills_by_month(user_id=USER, reference_month="2025-06") == []
 
-    def test_bills_isolated_by_user(self, store):
-        store.create_bill(user_id=USER, bill_name="Rent", budget=1000.0, reference_month="2025-06")
-        bills = store.list_bills_by_month(user_id=OTHER_USER, reference_month="2025-06")
+    def test_bills_isolated_by_user(self, fstore):
+        fstore.create_bill(user_id=USER, bill_name="Rent", budget=1000.0, reference_month="2025-06")
+        bills = fstore.list_bills_by_month(user_id=OTHER_USER, reference_month="2025-06")
         assert bills == []

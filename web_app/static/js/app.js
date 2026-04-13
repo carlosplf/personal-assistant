@@ -121,11 +121,12 @@
     const financeNextBtn = document.getElementById('finance-next-month');
     const financeLoadingEl = document.getElementById('finance-loading');
     const financeContentEl = document.getElementById('finance-content');
-    const financeTotalExpenses = document.getElementById('finance-total-expenses');
-    const financeTotalBills = document.getElementById('finance-total-bills');
-    const financePending = document.getElementById('finance-pending');
-    const financeProgressFill = document.getElementById('finance-progress-fill');
+    const financeHeroIncome = document.getElementById('finance-hero-income');
+    const financeHeroExpenses = document.getElementById('finance-hero-expenses');
+    const financeHeroBalance = document.getElementById('finance-hero-balance');
+    const financeHeroBalanceCard = document.querySelector('.finance-hero-balance');
     const financeBillsEl = document.getElementById('finance-bills');
+    const financeIncomeEl = document.getElementById('finance-income');
     const financeExpensesEl = document.getElementById('finance-expenses');
     let financeMonth = new Date();
     let financeLoading = false;
@@ -2907,6 +2908,7 @@
         }
         addMeta('Calorias', Math.round(parseFloat(exercise.calories) || 0) + ' kcal');
         if (exercise.duration_minutes) addMeta('Duração', exercise.duration_minutes + ' min');
+        if (exercise.effort_level != null) addMeta('Esforço', exercise.effort_level + '/10');
         if (exercise.date) addMeta('Data', exercise.date);
 
         var obsBlock = document.getElementById('exercise-detail-observations-block');
@@ -2922,11 +2924,23 @@
         document.getElementById('exercise-detail-view').classList.add('hidden');
         document.getElementById('exercise-edit-view').classList.remove('hidden');
 
-        document.getElementById('exercise-edit-activity').value = exercise.activity || '';
+        editPicker.setValue(exercise.activity || '');
         document.getElementById('exercise-edit-calories').value = Math.round(parseFloat(exercise.calories) || 0);
-        document.getElementById('exercise-edit-duration').value = exercise.duration_minutes || '';
+        setDurationFields('exercise-edit-duration-hours', 'exercise-edit-duration-mins', exercise.duration_minutes || 0);
         document.getElementById('exercise-edit-observations').value = exercise.observations || '';
         document.getElementById('exercise-edit-done').checked = exercise.done === true || exercise.done === 'true';
+
+        // Effort level
+        editEffortTouched = exercise.effort_level != null;
+        if (editEffortTouched) {
+            editEffortSlider.value = exercise.effort_level;
+            editEffortDisplay.textContent = exercise.effort_level + '/10 · ' + effortLabel(exercise.effort_level);
+            updateEffortSliderFill(editEffortSlider);
+        } else {
+            editEffortSlider.value = 5;
+            editEffortSlider.style.background = '';
+            editEffortDisplay.textContent = '—';
+        }
     }
 
     document.getElementById('exercise-detail-close').addEventListener('click', closeExerciseDetailModal);
@@ -2962,16 +2976,18 @@
         if (!exerciseDetailCurrentData) return;
         var id = exerciseDetailCurrentData.id || exerciseDetailCurrentData.page_id || '';
         if (!id) return;
-        var activity = document.getElementById('exercise-edit-activity').value.trim();
-        if (!activity) { document.getElementById('exercise-edit-activity').focus(); return; }
+        var activity = editPicker.getValue();
+        if (!activity) { showToast('Selecione ou informe a atividade'); return; }
         var calories = parseFloat(document.getElementById('exercise-edit-calories').value) || 0;
-        var durVal = parseInt(document.getElementById('exercise-edit-duration').value) || null;
+        var durVal = getDurationMinutes('exercise-edit-duration-hours', 'exercise-edit-duration-mins');
         var observations = document.getElementById('exercise-edit-observations').value.trim() || null;
         var done = document.getElementById('exercise-edit-done').checked;
+        var effortLevel = editEffortTouched ? parseInt(editEffortSlider.value) : null;
 
         var patchData = { activity: activity, calories: calories, done: done };
         if (durVal) patchData.duration_minutes = durVal;
         if (observations !== null) patchData.observations = observations;
+        if (effortLevel !== null) patchData.effort_level = effortLevel;
 
         try {
             var updated = await apiPatch('/api/health/exercises/' + encodeURIComponent(id), patchData);
@@ -3194,9 +3210,213 @@
     var exerciseCloseBtn = document.getElementById('health-exercise-close');
     var exerciseSubmitBtn = document.getElementById('exercise-submit-btn');
 
+    var ACTIVITIES = [
+        { value: 'Musculação',           emoji: '💪' },
+        { value: 'Corrida',              emoji: '🏃' },
+        { value: 'Bike',                 emoji: '🚴' },
+        { value: 'Caminhada',            emoji: '🚶' },
+        { value: 'Alongamento',          emoji: '🧘' },
+        { value: 'Simulador de Escada',  emoji: '🪜' },
+        { value: '__outros__',           emoji: '✏️', label: 'Outros…' },
+    ];
+
+    var PRESET_ACTIVITIES = ACTIVITIES.filter(function (a) { return a.value !== '__outros__'; }).map(function (a) { return a.value; });
+
+    var EFFORT_LABELS = [
+        'Repouso', 'Muito leve', 'Leve', 'Moderado', 'Confortável',
+        'Médio', 'Moderado+', 'Pesado', 'Difícil', 'Muito difícil', 'Extremo',
+    ];
+
+    // Build a custom activity picker inside the given container element.
+    // Returns { getValue, setValue, reset } controller.
+    function buildActivityPicker(container, customInput) {
+        container.innerHTML = '';
+        var currentValue = '';
+
+        // Trigger button
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'exercise-act-btn';
+        var btnEmoji = document.createElement('span');
+        btnEmoji.className = 'exercise-act-btn-emoji';
+        var btnLabel = document.createElement('span');
+        btnLabel.className = 'exercise-act-btn-label';
+        btnLabel.textContent = '— Selecione a atividade —';
+        var btnChevron = document.createElement('span');
+        btnChevron.className = 'exercise-act-btn-chevron';
+        btnChevron.textContent = '▾';
+        btn.appendChild(btnEmoji);
+        btn.appendChild(btnLabel);
+        btn.appendChild(btnChevron);
+
+        // Dropdown panel
+        var panel = document.createElement('div');
+        panel.className = 'exercise-act-panel hidden';
+
+        ACTIVITIES.forEach(function (act) {
+            var opt = document.createElement('div');
+            opt.className = 'exercise-act-opt';
+            opt.dataset.value = act.value;
+
+            var emojiEl = document.createElement('span');
+            emojiEl.className = 'exercise-act-opt-emoji';
+            emojiEl.textContent = act.emoji;
+
+            var labelEl = document.createElement('span');
+            labelEl.className = 'exercise-act-opt-label';
+            labelEl.textContent = act.label || act.value;
+
+            opt.appendChild(emojiEl);
+            opt.appendChild(labelEl);
+
+            opt.addEventListener('click', function () {
+                currentValue = act.value;
+                btnEmoji.textContent = act.emoji;
+                btnLabel.textContent = act.label || act.value;
+                panel.classList.add('hidden');
+                btn.classList.remove('open');
+                if (act.value === '__outros__') {
+                    customInput.classList.remove('hidden');
+                    customInput.focus();
+                } else {
+                    customInput.classList.add('hidden');
+                    customInput.value = '';
+                }
+            });
+
+            panel.appendChild(opt);
+        });
+
+        container.appendChild(btn);
+        container.appendChild(panel);
+
+        btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var isOpen = !panel.classList.contains('hidden');
+            // Close all other pickers
+            document.querySelectorAll('.exercise-act-panel').forEach(function (p) {
+                p.classList.add('hidden');
+            });
+            document.querySelectorAll('.exercise-act-btn').forEach(function (b) {
+                b.classList.remove('open');
+            });
+            if (!isOpen) {
+                panel.classList.remove('hidden');
+                btn.classList.add('open');
+            }
+        });
+
+        return {
+            getValue: function () {
+                if (currentValue === '__outros__') return customInput.value.trim();
+                return currentValue;
+            },
+            setValue: function (activity) {
+                var found = ACTIVITIES.find(function (a) { return a.value === activity; });
+                if (found && found.value !== '__outros__') {
+                    currentValue = found.value;
+                    btnEmoji.textContent = found.emoji;
+                    btnLabel.textContent = found.label || found.value;
+                    customInput.classList.add('hidden');
+                    customInput.value = '';
+                } else if (activity) {
+                    currentValue = '__outros__';
+                    var outros = ACTIVITIES.find(function (a) { return a.value === '__outros__'; });
+                    btnEmoji.textContent = outros ? outros.emoji : '✏️';
+                    btnLabel.textContent = 'Outros…';
+                    customInput.classList.remove('hidden');
+                    customInput.value = activity;
+                }
+            },
+            reset: function () {
+                currentValue = '';
+                btnEmoji.textContent = '';
+                btnLabel.textContent = '— Selecione a atividade —';
+                customInput.classList.add('hidden');
+                customInput.value = '';
+                panel.classList.add('hidden');
+                btn.classList.remove('open');
+            },
+        };
+    }
+
+    // Close pickers on outside click
+    document.addEventListener('click', function () {
+        document.querySelectorAll('.exercise-act-panel').forEach(function (p) {
+            p.classList.add('hidden');
+        });
+        document.querySelectorAll('.exercise-act-btn').forEach(function (b) {
+            b.classList.remove('open');
+        });
+    });
+
+    var addPicker = buildActivityPicker(
+        document.getElementById('exercise-activity-picker'),
+        document.getElementById('exercise-activity-custom')
+    );
+    var editPicker = buildActivityPicker(
+        document.getElementById('exercise-edit-activity-picker'),
+        document.getElementById('exercise-edit-activity')
+    );
+
+    function getDurationMinutes(hoursSelectId, minsSelectId) {
+        var h = parseInt(document.getElementById(hoursSelectId).value) || 0;
+        var m = parseInt(document.getElementById(minsSelectId).value) || 0;
+        var total = h * 60 + m;
+        return total > 0 ? total : null;
+    }
+
+    function setDurationFields(hoursSelectId, minsSelectId, totalMinutes) {
+        var mins = totalMinutes || 0;
+        var h = Math.min(Math.floor(mins / 60), 6);
+        var m = Math.floor((mins % 60) / 5) * 5;
+        document.getElementById(hoursSelectId).value = String(h);
+        document.getElementById(minsSelectId).value = String(m);
+    }
+
+    function updateEffortSliderFill(slider) {
+        var pct = (slider.value / slider.max) * 100;
+        slider.style.background = 'linear-gradient(to right, #1663DE 0%, #80C4E8 ' + pct + '%, #E5E7EB ' + pct + '%, #E5E7EB 100%)';
+    }
+
+    function effortLabel(val) {
+        return EFFORT_LABELS[parseInt(val)] || '';
+    }
+
+    // Effort slider wiring (add form)
+    var effortTouched = false;
+    var effortSlider = document.getElementById('exercise-effort');
+    var effortDisplay = document.getElementById('exercise-effort-display');
+    effortSlider.addEventListener('input', function () {
+        effortTouched = true;
+        effortDisplay.textContent = effortSlider.value + '/10 · ' + effortLabel(effortSlider.value);
+        updateEffortSliderFill(effortSlider);
+    });
+
+    // Effort slider wiring (edit form)
+    var editEffortTouched = false;
+    var editEffortSlider = document.getElementById('exercise-edit-effort');
+    var editEffortDisplay = document.getElementById('exercise-edit-effort-display');
+    editEffortSlider.addEventListener('input', function () {
+        editEffortTouched = true;
+        editEffortDisplay.textContent = editEffortSlider.value + '/10 · ' + effortLabel(editEffortSlider.value);
+        updateEffortSliderFill(editEffortSlider);
+    });
+
+    function resetExerciseForm() {
+        exerciseForm.reset();
+        document.getElementById('exercise-done').checked = true;
+        addPicker.reset();
+        document.getElementById('exercise-duration-hours').value = '0';
+        document.getElementById('exercise-duration-mins').value = '0';
+        effortTouched = false;
+        effortSlider.value = 5;
+        effortSlider.style.background = '';
+        effortDisplay.textContent = '—';
+    }
+
     document.getElementById('btn-add-exercise').addEventListener('click', function () {
         exerciseOverlay.classList.add('visible');
-        document.getElementById('exercise-activity').focus();
     });
 
     exerciseCloseBtn.addEventListener('click', function () {
@@ -3210,24 +3430,31 @@
     exerciseForm.addEventListener('submit', async function (e) {
         e.preventDefault();
         if (exerciseSubmitBtn.disabled) return;
+
+        var activity = addPicker.getValue();
+        if (!activity) { showToast('Selecione ou informe a atividade'); return; }
+
+        var calories = parseFloat(document.getElementById('exercise-calories').value);
+        if (!calories || calories <= 0) { document.getElementById('exercise-calories').focus(); return; }
+
         exerciseSubmitBtn.disabled = true;
         exerciseSubmitBtn.textContent = 'Registrando…';
 
         try {
-            var durVal = document.getElementById('exercise-duration').value;
-            var durMin = durVal ? parseInt(durVal) : null;
+            var durMin = getDurationMinutes('exercise-duration-hours', 'exercise-duration-mins');
+            var effortLevel = effortTouched ? parseInt(effortSlider.value) : null;
             var selectedDate = healthDateISO();
             await apiPost('/api/health/exercises', {
-                activity: document.getElementById('exercise-activity').value.trim(),
-                calories: parseFloat(document.getElementById('exercise-calories').value),
+                activity: activity,
+                calories: calories,
                 date: selectedDate,
                 observations: document.getElementById('exercise-observations').value.trim(),
                 done: document.getElementById('exercise-done').checked,
-                duration_minutes: durMin && durMin > 0 ? durMin : null,
+                duration_minutes: durMin,
+                effort_level: effortLevel,
             });
             exerciseOverlay.classList.remove('visible');
-            exerciseForm.reset();
-            document.getElementById('exercise-done').checked = true;
+            resetExerciseForm();
             showToast('Exercício registrado ✓');
             loadHealthDashboard();
         } catch (err) {
@@ -3293,30 +3520,39 @@
         financeContentEl.classList.remove('hidden');
 
         var totals = data.totals;
-        financeTotalExpenses.textContent = formatBRL(totals.total_expenses) + ' em despesas';
-        financeTotalBills.textContent = formatBRL(totals.total_budget) + ' em contas fixas';
-        financePending.textContent = formatBRL(totals.pending_budget) + ' pendente';
 
-        var pct = totals.total_budget > 0 ? Math.min((totals.total_paid / totals.total_budget) * 100, 100) : 0;
-        financeProgressFill.style.width = pct + '%';
+        // Hero cards
+        financeHeroIncome.textContent = formatBRL(totals.total_income);
+        financeHeroExpenses.textContent = formatBRL(totals.total_outgoing);
+        financeHeroBalance.textContent = formatBRL(totals.balance);
 
-        renderBills(data.bills);
+        if (financeHeroBalanceCard) {
+            financeHeroBalanceCard.classList.toggle('negative', totals.balance < 0);
+        }
+
+        renderBills(data.bills, totals);
+        renderIncome(data.income);
         renderExpensesByCategory(data.expenses, data.category_breakdown);
     }
 
-    function renderBills(bills) {
+    function renderBills(bills, totals) {
         if (!bills || bills.length === 0) {
-            financeBillsEl.innerHTML = '<h3 class="finance-section-title">Contas fixas</h3>' +
+            financeBillsEl.innerHTML = '<div class="finance-section-header"><h3 class="finance-section-title">📋 Contas Fixas</h3></div>' +
                 '<div class="finance-empty-state">Nenhuma conta registrada neste mês</div>';
             return;
         }
 
         var today = new Date().toISOString().slice(0, 10);
+        var paidCount = bills.filter(function (b) { return b.paid; }).length;
         var unpaid = bills.filter(function (b) { return !b.paid; });
         var paid = bills.filter(function (b) { return b.paid; });
         var sorted = unpaid.concat(paid);
 
-        var html = '<h3 class="finance-section-title">Contas fixas (' + bills.length + ')</h3>';
+        var pct = totals && totals.total_budget > 0 ? Math.min((totals.total_paid / totals.total_budget) * 100, 100) : 0;
+
+        var html = '<div class="finance-section-header"><h3 class="finance-section-title">📋 Contas Fixas</h3>' +
+            '<span class="finance-section-badge">' + paidCount + '/' + bills.length + ' pagas</span></div>' +
+            '<div class="finance-progress-bar"><div class="finance-progress-fill" style="width:' + pct + '%"></div></div>';
         sorted.forEach(function (bill) {
             var badgeClass = 'badge-pending';
             var badgeText = 'Pendente';
@@ -3400,7 +3636,7 @@
 
     function renderExpensesByCategory(expenses, breakdown) {
         if (!expenses || expenses.length === 0) {
-            financeExpensesEl.innerHTML = '<h3 class="finance-section-title">Despesas</h3>' +
+            financeExpensesEl.innerHTML = '<div class="finance-section-header"><h3 class="finance-section-title">💸 Despesas</h3></div>' +
                 '<div class="finance-empty-state">Nenhuma despesa registrada neste mês</div>';
             return;
         }
@@ -3415,7 +3651,8 @@
         var catTotals = {};
         (breakdown || []).forEach(function (b) { catTotals[b.category] = b.total; });
 
-        var html = '<h3 class="finance-section-title">Despesas (' + expenses.length + ')</h3>';
+        var html = '<div class="finance-section-header"><h3 class="finance-section-title">💸 Despesas</h3>' +
+            '<span class="finance-section-badge">' + expenses.length + ' item' + (expenses.length > 1 ? 's' : '') + '</span></div>';
         Object.keys(grouped).sort().forEach(function (cat) {
             var items = grouped[cat];
             var total = catTotals[cat] || items.reduce(function (s, e) { return s + e.amount; }, 0);
@@ -3454,6 +3691,51 @@
         try {
             await apiDelete('/api/finance/expenses/' + expenseId);
             showToast('Despesa excluída ✓');
+            loadFinanceDashboard();
+        } catch (err) {
+            showToast('Erro: ' + err.message);
+        }
+    }
+
+    function renderIncome(income) {
+        if (!income || income.length === 0) {
+            financeIncomeEl.innerHTML = '<div class="finance-section-header"><h3 class="finance-section-title">💰 Receitas</h3></div>' +
+                '<div class="finance-empty-state">Nenhuma receita registrada neste mês</div>';
+            return;
+        }
+
+        var html = '<div class="finance-section-header"><h3 class="finance-section-title">💰 Receitas</h3>' +
+            '<span class="finance-section-badge">' + income.length + ' entrada' + (income.length > 1 ? 's' : '') + '</span></div>';
+
+        income.forEach(function (item) {
+            html += '<div class="finance-income-item" data-income-id="' + item.id + '">' +
+                '<div class="finance-income-info">' +
+                '<span class="finance-income-name">' + escapeHtml(item.name) + '</span>' +
+                '<span class="finance-income-cat">' + escapeHtml(item.category || '') + '</span>' +
+                '</div>' +
+                '<span class="finance-income-date">' + formatDateShort(item.date) + '</span>' +
+                '<span class="finance-income-amount">' + formatBRL(item.amount) + '</span>' +
+                '<button class="finance-income-delete" data-income-id="' + item.id + '" title="Excluir">' +
+                '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+                '</button>' +
+                '</div>';
+        });
+
+        financeIncomeEl.innerHTML = html;
+
+        financeIncomeEl.querySelectorAll('.finance-income-delete').forEach(function (el) {
+            el.addEventListener('click', function (e) {
+                e.stopPropagation();
+                deleteIncome(el.dataset.incomeId);
+            });
+        });
+    }
+
+    async function deleteIncome(incomeId) {
+        if (!confirm('Excluir esta receita?')) return;
+        try {
+            await apiDelete('/api/finance/income/' + incomeId);
+            showToast('Receita excluída ✓');
             loadFinanceDashboard();
         } catch (err) {
             showToast('Erro: ' + err.message);
@@ -3555,6 +3837,57 @@
         } finally {
             billSubmitBtn.disabled = false;
             billSubmitBtn.textContent = 'Registrar Conta';
+        }
+    });
+
+    // ---- Income modal ----
+    var incomeOverlay = document.getElementById('finance-income-overlay');
+    var incomeForm = document.getElementById('finance-income-form');
+    var incomeSubmitBtn = document.getElementById('income-submit-btn');
+    var incomeCloseBtn = document.getElementById('finance-income-close');
+    var incomeDateInput = document.getElementById('income-date');
+
+    document.getElementById('btn-add-income').addEventListener('click', function () {
+        if (incomeDatePicker) {
+            incomeDatePicker.setValue(new Date().toISOString().slice(0, 10));
+        } else {
+            incomeDateInput.value = new Date().toISOString().slice(0, 10);
+        }
+        incomeOverlay.classList.add('visible');
+    });
+
+    incomeCloseBtn.addEventListener('click', function () {
+        incomeOverlay.classList.remove('visible');
+    });
+
+    incomeOverlay.addEventListener('click', function (e) {
+        if (e.target === incomeOverlay) incomeOverlay.classList.remove('visible');
+    });
+
+    setupChipGroup('income-category-chips');
+
+    incomeForm.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        incomeSubmitBtn.disabled = true;
+        incomeSubmitBtn.textContent = 'Registrando…';
+
+        var activeChip = document.querySelector('#income-category-chips .health-chip.active');
+        try {
+            await apiPost('/api/finance/income', {
+                name: document.getElementById('income-name').value.trim(),
+                amount: parseFloat(document.getElementById('income-amount').value),
+                category: activeChip ? activeChip.dataset.value : 'Outros',
+                date: incomeDateInput.value || undefined
+            });
+            incomeOverlay.classList.remove('visible');
+            incomeForm.reset();
+            showToast('Receita registrada ✓');
+            loadFinanceDashboard();
+        } catch (err) {
+            showToast('Erro: ' + err.message);
+        } finally {
+            incomeSubmitBtn.disabled = false;
+            incomeSubmitBtn.textContent = 'Registrar Receita';
         }
     });
 
@@ -4245,6 +4578,13 @@
     var billDueDateHidden = document.getElementById('bill-due-date');
     if (billDueDateBtn && billDueDateHidden) {
         billDueDatePicker = new IOSDatePicker(billDueDateHidden, billDueDateBtn);
+    }
+
+    var incomeDatePicker = null;
+    var incomeDateBtn = document.getElementById('income-date-btn');
+    var incomeDateHidden = document.getElementById('income-date');
+    if (incomeDateBtn && incomeDateHidden) {
+        incomeDatePicker = new IOSDatePicker(incomeDateHidden, incomeDateBtn);
     }
 
     // Wire up add-task form

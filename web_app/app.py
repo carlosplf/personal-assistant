@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from web_app.auth import create_access_token
-from web_app.dependencies import get_assistant_service, get_credential_store, get_current_user, get_current_user_flexible, get_google_oauth, get_health_store, get_user_store
+from web_app.dependencies import get_assistant_service, get_credential_store, get_current_user, get_current_user_flexible, get_finance_store, get_google_oauth, get_health_store, get_user_store
 from web_app.user_store import WebUserStore
 
 load_dotenv()
@@ -1279,6 +1279,7 @@ class CreateExerciseRequest(BaseModel):
     observations: str = ""
     done: bool = True
     duration_minutes: int | None = None
+    effort_level: int | None = None
 
 
 @app.post("/api/health/exercises")
@@ -1298,6 +1299,8 @@ async def create_health_exercise(
     observations = body.observations.strip()
     if len(observations) > _MAX_OBSERVATIONS_LEN:
         raise HTTPException(status_code=400, detail=f"observations must be at most {_MAX_OBSERVATIONS_LEN} characters")
+    if body.effort_level is not None and not (0 <= body.effort_level <= 10):
+        raise HTTPException(status_code=400, detail="effort_level must be between 0 and 10")
 
     from utils.timezone_utils import today_iso_in_configured_timezone
 
@@ -1320,6 +1323,7 @@ async def create_health_exercise(
         observations=observations,
         done=body.done,
         duration_minutes=body.duration_minutes,
+        effort_level=body.effort_level,
     )
     return {"status": "created", "exercise": result}
 
@@ -1330,6 +1334,7 @@ class UpdateExerciseRequest(BaseModel):
     observations: str | None = None
     done: bool | None = None
     duration_minutes: int | None = None
+    effort_level: int | None = None
 
 
 @app.patch("/api/health/exercises/{exercise_id}")
@@ -1364,6 +1369,10 @@ async def update_health_exercise(
         if body.duration_minutes < 1 or body.duration_minutes > 1440:
             raise HTTPException(status_code=400, detail="duration_minutes must be between 1 and 1440")
         kwargs["duration_minutes"] = body.duration_minutes
+    if body.effort_level is not None:
+        if not (0 <= body.effort_level <= 10):
+            raise HTTPException(status_code=400, detail="effort_level must be between 0 and 10")
+        kwargs["effort_level"] = body.effort_level
 
     if not kwargs:
         raise HTTPException(status_code=400, detail="At least one field must be provided to update")
@@ -1443,7 +1452,7 @@ async def create_finance_expense(
         expense_date = today_iso_in_configured_timezone()
 
     user_id = f"web:{user['username']}"
-    store = get_health_store()
+    store = get_finance_store()
     result = await asyncio.to_thread(
         store.create_expense,
         user_id=user_id,
@@ -1463,7 +1472,7 @@ async def delete_finance_expense(
 ):
     """Delete a financial expense."""
     user_id = f"web:{user['username']}"
-    store = get_health_store()
+    store = get_finance_store()
     deleted = await asyncio.to_thread(store.delete_expense, user_id, expense_id.strip())
     if not deleted:
         raise HTTPException(status_code=404, detail="Expense not found")
@@ -1507,7 +1516,7 @@ async def create_finance_bill(
         ref_month = today_iso_in_configured_timezone()[:7]
 
     user_id = f"web:{user['username']}"
-    store = get_health_store()
+    store = get_finance_store()
     result = await asyncio.to_thread(
         store.create_bill,
         user_id=user_id,
@@ -1540,7 +1549,7 @@ async def update_finance_bill(
         raise HTTPException(status_code=400, detail="At least one field must be provided")
 
     user_id = f"web:{user['username']}"
-    store = get_health_store()
+    store = get_finance_store()
 
     if body.paid is not None or body.paid_amount is not None:
         try:
@@ -1565,11 +1574,77 @@ async def delete_finance_bill(
 ):
     """Delete a bill."""
     user_id = f"web:{user['username']}"
-    store = get_health_store()
+    store = get_finance_store()
     deleted = await asyncio.to_thread(store.delete_bill, user_id, bill_id.strip())
     if not deleted:
         raise HTTPException(status_code=404, detail="Bill not found")
     return {"status": "deleted"}
+
+
+# ---- Income endpoints ----
+
+_MAX_INCOME_NAME_LEN = 200
+_VALID_INCOME_CATEGORIES = {"Salário", "Consultoria", "Investimentos", "Transferência", "Outros"}
+
+
+class CreateIncomeRequest(BaseModel):
+    name: str
+    amount: float
+    category: str = "Outros"
+    date: str | None = None
+
+
+@app.post("/api/finance/income")
+async def create_finance_income(
+    body: CreateIncomeRequest,
+    user: dict = Depends(get_current_user),
+):
+    """Register a financial income entry."""
+    name = body.name.strip()
+    if not name or len(name) > _MAX_INCOME_NAME_LEN:
+        raise HTTPException(status_code=400, detail=f"name must be 1-{_MAX_INCOME_NAME_LEN} characters")
+    if body.amount <= 0 or body.amount > _MAX_AMOUNT:
+        raise HTTPException(status_code=400, detail="amount must be between 0 and 99999999.99")
+    category = body.category.strip() or "Outros"
+
+    import re
+    income_date = None
+    if body.date:
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", body.date):
+            raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD")
+        income_date = body.date
+    else:
+        from utils.timezone_utils import today_iso_in_configured_timezone
+        income_date = today_iso_in_configured_timezone()
+
+    user_id = f"web:{user['username']}"
+    store = get_finance_store()
+    result = await asyncio.to_thread(
+        store.create_income,
+        user_id=user_id,
+        name=name,
+        amount=body.amount,
+        category=category,
+        date=income_date,
+    )
+    return {"status": "created", "income": result}
+
+
+@app.delete("/api/finance/income/{income_id}")
+async def delete_finance_income(
+    income_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """Delete an income entry."""
+    user_id = f"web:{user['username']}"
+    store = get_finance_store()
+    deleted = await asyncio.to_thread(store.delete_income, user_id, income_id.strip())
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Income not found")
+    return {"status": "deleted"}
+
+
+# ---- Finance dashboard ----
 
 
 @app.get("/api/finance/dashboard")
@@ -1577,7 +1652,7 @@ async def finance_dashboard(
     month: str | None = Query(None, description="YYYY-MM, defaults to current month"),
     user: dict = Depends(get_current_user),
 ):
-    """Monthly finance dashboard: expenses + bills + totals."""
+    """Monthly finance dashboard: income + expenses + bills + totals."""
     import re
     from utils.timezone_utils import today_iso_in_configured_timezone
 
@@ -1589,7 +1664,7 @@ async def finance_dashboard(
         target_month = today_iso_in_configured_timezone()[:7]
 
     user_id = f"web:{user['username']}"
-    store = get_health_store()
+    store = get_finance_store()
 
     async def fetch_expenses():
         try:
@@ -1603,12 +1678,23 @@ async def finance_dashboard(
         except Exception:
             return []
 
-    expenses, bills = await asyncio.gather(fetch_expenses(), fetch_bills())
+    async def fetch_income():
+        try:
+            return await asyncio.to_thread(store.list_income_by_month, user_id, target_month)
+        except Exception:
+            return []
+
+    expenses, bills, income = await asyncio.gather(
+        fetch_expenses(), fetch_bills(), fetch_income()
+    )
 
     total_expenses = sum(float(e.get("amount") or 0) for e in expenses)
     total_budget = sum(float(b.get("budget") or 0) for b in bills)
     total_paid = sum(float(b.get("paid_amount") or 0) for b in bills if b.get("paid"))
     unpaid_count = sum(1 for b in bills if not b.get("paid"))
+    total_income = sum(float(i.get("amount") or 0) for i in income)
+    total_outgoing = total_expenses + total_budget
+    balance = total_income - total_outgoing
 
     # Category breakdown for expenses
     cat_map: dict[str, float] = {}
@@ -1621,12 +1707,16 @@ async def finance_dashboard(
         "month": target_month,
         "expenses": expenses,
         "bills": bills,
+        "income": income,
         "totals": {
             "total_expenses": round(total_expenses, 2),
             "total_budget": round(total_budget, 2),
             "total_paid": round(total_paid, 2),
             "pending_budget": round(total_budget - total_paid, 2),
             "unpaid_count": unpaid_count,
+            "total_income": round(total_income, 2),
+            "total_outgoing": round(total_outgoing, 2),
+            "balance": round(balance, 2),
         },
         "category_breakdown": category_breakdown,
     }

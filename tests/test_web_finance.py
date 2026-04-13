@@ -26,6 +26,7 @@ def _env_setup(monkeypatch, tmp_path):
     deps._google_oauth = None
     deps._credential_store = None
     deps._health_store = None
+    deps._finance_store = None
 
     monkeypatch.setattr(httpx.Client, "request", _ORIGINAL_HTTPX_REQUEST)
 
@@ -330,3 +331,141 @@ class TestFinanceUserIsolation:
         res = client.get("/api/finance/dashboard?month=2026-04", headers=h2)
         assert res.status_code == 200
         assert res.json()["bills"] == []
+
+
+# ---------------------------------------------------------------------------
+# Income Endpoints
+# ---------------------------------------------------------------------------
+
+class TestIncomeEndpoints:
+    def test_create_income(self, client, auth_token):
+        res = client.post(
+            "/api/finance/income",
+            json={"name": "Salário mensal", "amount": 8000.0, "category": "Salário", "date": "2026-04-05"},
+            headers=_auth(auth_token),
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["status"] == "created"
+        assert data["income"]["name"] == "Salário mensal"
+        assert data["income"]["amount"] == 8000.0
+        assert data["income"]["category"] == "Salário"
+
+    def test_create_income_no_auth(self, client):
+        res = client.post("/api/finance/income", json={"name": "Test", "amount": 100})
+        assert res.status_code in (401, 403)
+
+    def test_create_income_invalid_amount(self, client, auth_token):
+        res = client.post(
+            "/api/finance/income",
+            json={"name": "Bad", "amount": -10, "date": "2026-04-01"},
+            headers=_auth(auth_token),
+        )
+        assert res.status_code == 400
+
+    def test_create_income_empty_name(self, client, auth_token):
+        res = client.post(
+            "/api/finance/income",
+            json={"name": "", "amount": 100, "date": "2026-04-01"},
+            headers=_auth(auth_token),
+        )
+        assert res.status_code == 400
+
+    def test_delete_income(self, client, auth_token):
+        h = _auth(auth_token)
+        res = client.post(
+            "/api/finance/income",
+            json={"name": "Freelance", "amount": 2000, "date": "2026-04-10"},
+            headers=h,
+        )
+        income_id = res.json()["income"]["id"]
+        del_res = client.delete(f"/api/finance/income/{income_id}", headers=h)
+        assert del_res.status_code == 200
+        assert del_res.json()["status"] == "deleted"
+
+    def test_delete_income_not_found(self, client, auth_token):
+        res = client.delete("/api/finance/income/nonexistent", headers=_auth(auth_token))
+        assert res.status_code == 404
+
+    def test_income_in_dashboard(self, client, auth_token):
+        h = _auth(auth_token)
+        client.post(
+            "/api/finance/income",
+            json={"name": "Salário", "amount": 5000, "category": "Salário", "date": "2026-05-01"},
+            headers=h,
+        )
+        client.post(
+            "/api/finance/expenses",
+            json={"name": "Mercado", "amount": 300, "date": "2026-05-02"},
+            headers=h,
+        )
+        res = client.get("/api/finance/dashboard?month=2026-05", headers=h)
+        assert res.status_code == 200
+        data = res.json()
+        assert data["totals"]["total_income"] == 5000
+        assert data["totals"]["total_expenses"] == 300
+        assert data["totals"]["balance"] == 5000 - 300
+        assert len(data["income"]) == 1
+
+    def test_income_isolated_by_user(self, client, auth_token, other_token):
+        h1 = _auth(auth_token)
+        h2 = _auth(other_token)
+        client.post(
+            "/api/finance/income",
+            json={"name": "My Income", "amount": 3000, "date": "2026-06-01"},
+            headers=h1,
+        )
+        res = client.get("/api/finance/dashboard?month=2026-06", headers=h2)
+        assert res.status_code == 200
+        assert res.json()["income"] == []
+        assert res.json()["totals"]["total_income"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Encryption at Rest
+# ---------------------------------------------------------------------------
+
+class TestEncryptionAtRest:
+    def test_expense_data_encrypted_in_db(self, client, auth_token):
+        """Verify that sensitive expense fields are encrypted in SQLite."""
+        import sqlite3
+        h = _auth(auth_token)
+        client.post(
+            "/api/finance/expenses",
+            json={"name": "Secret Expense", "amount": 42.50, "category": "Lazer", "date": "2026-07-01"},
+            headers=h,
+        )
+        # Read raw from DB
+        from web_app.dependencies import get_finance_store
+        store = get_finance_store()
+        conn = store._connect()
+        try:
+            row = conn.execute("SELECT name, amount, category FROM financial_expenses LIMIT 1").fetchone()
+        finally:
+            conn.close()
+        assert row is not None
+        # Encrypted fields should NOT contain the plaintext values
+        assert row["name"] != "Secret Expense"
+        assert row["amount"] != "42.50" and row["amount"] != "42.5"
+        assert row["category"] != "Lazer"
+        # Encrypted values start with gAAAAA (Fernet token prefix)
+        assert str(row["name"]).startswith("gAAAAA")
+
+    def test_income_data_encrypted_in_db(self, client, auth_token):
+        """Verify that sensitive income fields are encrypted in SQLite."""
+        h = _auth(auth_token)
+        client.post(
+            "/api/finance/income",
+            json={"name": "Secret Income", "amount": 9999, "category": "Salário", "date": "2026-07-01"},
+            headers=h,
+        )
+        from web_app.dependencies import get_finance_store
+        store = get_finance_store()
+        conn = store._connect()
+        try:
+            row = conn.execute("SELECT name, amount, category FROM financial_income LIMIT 1").fetchone()
+        finally:
+            conn.close()
+        assert row is not None
+        assert row["name"] != "Secret Income"
+        assert str(row["name"]).startswith("gAAAAA")

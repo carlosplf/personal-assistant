@@ -2964,6 +2964,208 @@ input[type="checkbox"]:focus-visible {
     cursor: not-allowed;
 }
 
+/* ---- Exercise activity select (gradient-bordered dropdown) ---- */
+/* ---- Exercise custom activity picker ---- */
+.exercise-act-picker {
+    position: relative;
+}
+
+.exercise-act-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background: linear-gradient(var(--color-bg), var(--color-bg)) padding-box,
+                linear-gradient(135deg, var(--color-blue-start), var(--color-blue-end)) border-box;
+    cursor: pointer;
+    font-size: 0.95rem;
+    color: var(--color-text);
+    text-align: left;
+    transition: box-shadow 0.15s;
+}
+
+.exercise-act-btn:hover,
+.exercise-act-btn.open {
+    box-shadow: 0 0 0 3px rgba(22, 99, 222, 0.12);
+}
+
+.exercise-act-btn-emoji {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--color-blue-start), var(--color-blue-end));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    /* Emoji sits on gradient bg */
+}
+
+.exercise-act-btn-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.exercise-act-btn-chevron {
+    font-size: 0.8rem;
+    color: var(--color-blue-start);
+    transition: transform 0.2s;
+}
+
+.exercise-act-btn.open .exercise-act-btn-chevron {
+    transform: rotate(180deg);
+}
+
+.exercise-act-panel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 4px);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    z-index: 200;
+    overflow: hidden;
+}
+
+.exercise-act-opt {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 0.93rem;
+    color: var(--color-text);
+    transition: background 0.12s;
+}
+
+.exercise-act-opt:hover {
+    background: rgba(22, 99, 222, 0.07);
+}
+
+.exercise-act-opt-emoji {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--color-blue-start), var(--color-blue-end));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+}
+
+.exercise-act-opt-label {
+    font-size: 0.93rem;
+}
+
+/* ---- Exercise duration row (hours + mins dropdowns) ---- */
+.exercise-duration-row {
+    display: flex;
+    gap: 12px;
+}
+
+.exercise-duration-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+}
+
+.exercise-duration-select {
+    flex: 1;
+    min-width: 0;
+    padding-right: 8px;
+    text-align: center;
+    cursor: pointer;
+}
+
+.exercise-duration-unit {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.exercise-activity-custom {
+    margin-top: 8px;
+}
+
+/* ---- Exercise effort slider ---- */
+.exercise-effort-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.exercise-effort-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--color-border);
+    outline: none;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.exercise-effort-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2.5px solid var(--color-blue-start);
+    box-shadow: 0 1px 4px rgba(22, 99, 222, 0.25);
+    cursor: pointer;
+}
+
+.exercise-effort-slider::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2.5px solid var(--color-blue-start);
+    box-shadow: 0 1px 4px rgba(22, 99, 222, 0.25);
+    cursor: pointer;
+}
+
+.exercise-effort-slider::-moz-range-track {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--color-border);
+}
+
+.exercise-effort-bound {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    min-width: 14px;
+    text-align: center;
+}
+
+.exercise-effort-value {
+    font-weight: 600;
+    color: var(--color-blue-start);
+    margin-left: 4px;
+}
+
+.exercise-effort-hint {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin-top: 4px;
+    margin-bottom: 0;
+}
+
 /* ---- Meal items list (modal) ---- */
 .meal-items-header {
     display: flex;
@@ -3139,7 +3341,7 @@ input[type="checkbox"]:focus-visible {
     overflow: hidden;
 }
 
-/* ---- Finance actions bar (month nav moved to header) ---- */
+/* ---- Finance actions bar ---- */
 .finance-month-nav {
     display: flex;
     align-items: center;
@@ -3162,6 +3364,24 @@ input[type="checkbox"]:focus-visible {
     white-space: nowrap;
 }
 
+.btn-finance-income {
+    font-size: 0.78rem;
+    padding: 6px 12px;
+    border-radius: 18px;
+    white-space: nowrap;
+    background: rgba(34, 197, 94, 0.12);
+    color: #16a34a;
+    border: 1px solid rgba(34, 197, 94, 0.25);
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-finance-income:hover {
+    background: rgba(34, 197, 94, 0.2);
+    border-color: rgba(34, 197, 94, 0.4);
+}
+
 /* ---- Loading ---- */
 .finance-loading {
     flex: 1;
@@ -3180,46 +3400,90 @@ input[type="checkbox"]:focus-visible {
     -webkit-overflow-scrolling: touch;
 }
 
-/* ---- Summary card ---- */
-.finance-summary {
-    background: rgba(22, 99, 222, 0.04);
-    border: 1px solid rgba(22, 99, 222, 0.12);
-    border-radius: var(--radius-md);
-    padding: 16px;
-    margin-bottom: 20px;
+/* ---- Hero cards ---- */
+.finance-hero {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
 }
 
-.finance-summary-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+.finance-hero-card {
+    border-radius: var(--radius-md);
+    padding: 18px 16px;
+    text-align: center;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.finance-hero-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.finance-hero-income {
+    background: rgba(34, 197, 94, 0.06);
+    border: 1px solid rgba(34, 197, 94, 0.15);
+}
+
+.finance-hero-expenses {
+    background: rgba(245, 158, 11, 0.06);
+    border: 1px solid rgba(245, 158, 11, 0.15);
+}
+
+.finance-hero-balance {
+    background: rgba(22, 99, 222, 0.06);
+    border: 1px solid rgba(22, 99, 222, 0.15);
+}
+
+.finance-hero-balance.negative {
+    background: rgba(239, 68, 68, 0.06);
+    border: 1px solid rgba(239, 68, 68, 0.15);
+}
+
+.finance-hero-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
     margin-bottom: 6px;
 }
 
-.finance-summary-row:last-child {
-    margin-bottom: 0;
-}
+.finance-hero-income .finance-hero-label { color: #16a34a; }
+.finance-hero-expenses .finance-hero-label { color: #d97706; }
+.finance-hero-balance .finance-hero-label { color: var(--color-blue-start); }
+.finance-hero-balance.negative .finance-hero-label { color: #dc2626; }
 
-.finance-summary-icon {
-    font-size: 1.1rem;
-    flex-shrink: 0;
-}
-
-.finance-summary-text {
-    font-size: 0.9rem;
+.finance-hero-value {
+    font-size: 1.25rem;
+    font-weight: 700;
     color: var(--color-text);
-    font-weight: 500;
+    line-height: 1.2;
 }
 
-.finance-pending-row .finance-summary-text {
+.finance-hero-balance.negative .finance-hero-value { color: #dc2626; }
+
+/* ---- Section headers ---- */
+.finance-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.finance-section-badge {
+    font-size: 0.72rem;
+    font-weight: 500;
     color: var(--color-text-muted);
+    background: var(--color-border);
+    padding: 2px 8px;
+    border-radius: 10px;
 }
 
 .finance-progress-bar {
     height: 6px;
     background: var(--color-border);
     border-radius: 3px;
-    margin: 10px 0;
+    margin: 0 0 12px 0;
     overflow: hidden;
 }
 
@@ -3445,6 +3709,83 @@ input[type="checkbox"]:focus-visible {
     color: #ef4444;
 }
 
+/* ---- Income section ---- */
+.finance-income-section {
+    margin-bottom: 20px;
+}
+
+.finance-income-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+    transition: background 0.15s;
+}
+
+.finance-income-item:hover {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.finance-income-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.finance-income-name {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.finance-income-cat {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin-top: 1px;
+}
+
+.finance-income-date {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+}
+
+.finance-income-amount {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #16a34a;
+    flex-shrink: 0;
+}
+
+.finance-income-delete {
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
+    flex-shrink: 0;
+}
+
+.finance-income-item:hover .finance-income-delete {
+    opacity: 1;
+}
+
+.finance-income-delete:hover {
+    color: #ef4444;
+}
+
 /* ---- Empty state ---- */
 .finance-empty-state {
     text-align: center;
@@ -3596,7 +3937,8 @@ input[type="checkbox"]:focus-visible {
         padding: 10px 12px;
     }
 
-    .finance-actions .btn-finance-add {
+    .finance-actions .btn-finance-add,
+    .finance-actions .btn-finance-income {
         flex: 1;
     }
 
@@ -3605,9 +3947,31 @@ input[type="checkbox"]:focus-visible {
         padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     }
 
+    .finance-hero {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .finance-hero-card {
+        padding: 14px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        text-align: left;
+    }
+
+    .finance-hero-label {
+        margin-bottom: 0;
+    }
+
+    .finance-hero-value {
+        font-size: 1.1rem;
+    }
+
     /* Show delete buttons on mobile (no hover) */
     .finance-bill-delete,
-    .finance-expense-delete {
+    .finance-expense-delete,
+    .finance-income-delete {
         opacity: 0.5;
     }
 

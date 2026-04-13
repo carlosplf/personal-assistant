@@ -412,9 +412,10 @@
 
             <!-- Finance view -->
             <div class="finance-view hidden" id="finance-view">
-                <!-- Month navigator actions bar -->
+                <!-- Actions bar -->
                 <div class="finance-month-nav">
                     <div class="finance-actions">
+                        <button class="btn btn-finance-income" id="btn-add-income" title="Registrar receita">+ Receita</button>
                         <button class="btn btn-primary btn-finance-add" id="btn-add-expense" title="Registrar despesa">+ Despesa</button>
                         <button class="btn btn-outline btn-finance-add" id="btn-add-bill" title="Registrar conta">+ Conta</button>
                     </div>
@@ -427,27 +428,29 @@
 
                 <!-- Monthly content -->
                 <div class="finance-content hidden" id="finance-content">
-                    <!-- Summary card -->
-                    <div class="finance-summary" id="finance-summary">
-                        <div class="finance-summary-row">
-                            <span class="finance-summary-icon">💸</span>
-                            <span class="finance-summary-text" id="finance-total-expenses">R$ 0,00 em despesas</span>
+                    <!-- Hero cards -->
+                    <div class="finance-hero">
+                        <div class="finance-hero-card finance-hero-income">
+                            <div class="finance-hero-label">Receitas</div>
+                            <div class="finance-hero-value" id="finance-hero-income">R$ 0,00</div>
                         </div>
-                        <div class="finance-summary-row">
-                            <span class="finance-summary-icon">📋</span>
-                            <span class="finance-summary-text" id="finance-total-bills">R$ 0,00 em contas fixas</span>
+                        <div class="finance-hero-card finance-hero-expenses">
+                            <div class="finance-hero-label">Despesas</div>
+                            <div class="finance-hero-value" id="finance-hero-expenses">R$ 0,00</div>
                         </div>
-                        <div class="finance-progress-bar">
-                            <div class="finance-progress-fill" id="finance-progress-fill"></div>
-                        </div>
-                        <div class="finance-summary-row finance-pending-row">
-                            <span class="finance-summary-icon">⏳</span>
-                            <span class="finance-summary-text" id="finance-pending">R$ 0,00 pendente</span>
+                        <div class="finance-hero-card finance-hero-balance">
+                            <div class="finance-hero-label">Saldo</div>
+                            <div class="finance-hero-value" id="finance-hero-balance">R$ 0,00</div>
                         </div>
                     </div>
 
                     <!-- Bills section -->
                     <div class="finance-bills" id="finance-bills">
+                        <!-- Dynamically populated -->
+                    </div>
+
+                    <!-- Income section -->
+                    <div class="finance-income-section" id="finance-income">
                         <!-- Dynamically populated -->
                     </div>
 
@@ -613,18 +616,66 @@
             <!-- Edit mode -->
             <div id="exercise-edit-view" class="hidden">
                 <h3>Editar Exercício</h3>
+
+                <!-- Activity custom dropdown (edit) -->
                 <div class="health-form-group">
-                    <label class="health-form-label" for="exercise-edit-activity">Atividade</label>
-                    <input type="text" class="health-form-input" id="exercise-edit-activity" maxlength="200" autocomplete="off">
+                    <label class="health-form-label">Atividade</label>
+                    <div class="exercise-act-picker" id="exercise-edit-activity-picker"></div>
+                    <input type="text" class="health-form-input exercise-activity-custom" id="exercise-edit-activity" maxlength="200" autocomplete="off" placeholder="Nome da atividade…">
                 </div>
+
                 <div class="health-form-group">
                     <label class="health-form-label" for="exercise-edit-calories">Calorias queimadas (kcal)</label>
                     <input type="number" class="health-form-input" id="exercise-edit-calories" min="1" max="50000" step="any">
                 </div>
+
+                <!-- Duration: hours + minutes dropdowns (edit) -->
                 <div class="health-form-group">
-                    <label class="health-form-label" for="exercise-edit-duration">Duração (min, opcional)</label>
-                    <input type="number" class="health-form-input" id="exercise-edit-duration" min="1" max="1440" step="1">
+                    <label class="health-form-label">Duração (opcional)</label>
+                    <div class="exercise-duration-row">
+                        <div class="exercise-duration-field">
+                            <select id="exercise-edit-duration-hours" class="health-form-input exercise-duration-select">
+                                <option value="0">0</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                            </select>
+                            <span class="exercise-duration-unit">h</span>
+                        </div>
+                        <div class="exercise-duration-field">
+                            <select id="exercise-edit-duration-mins" class="health-form-input exercise-duration-select">
+                                <option value="0">00</option>
+                                <option value="5">05</option>
+                                <option value="10">10</option>
+                                <option value="15">15</option>
+                                <option value="20">20</option>
+                                <option value="25">25</option>
+                                <option value="30">30</option>
+                                <option value="35">35</option>
+                                <option value="40">40</option>
+                                <option value="45">45</option>
+                                <option value="50">50</option>
+                                <option value="55">55</option>
+                            </select>
+                            <span class="exercise-duration-unit">min</span>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Effort level (edit) -->
+                <div class="health-form-group">
+                    <label class="health-form-label">Nível de esforço: <span id="exercise-edit-effort-display" class="exercise-effort-value">—</span></label>
+                    <div class="exercise-effort-row">
+                        <span class="exercise-effort-bound">0</span>
+                        <input type="range" id="exercise-edit-effort" class="exercise-effort-slider" min="0" max="10" step="1">
+                        <span class="exercise-effort-bound">10</span>
+                    </div>
+                    <p class="exercise-effort-hint">Opcional</p>
+                </div>
+
                 <div class="health-form-group">
                     <label class="health-form-label" for="exercise-edit-observations">Observações (opcional)</label>
                     <input type="text" class="health-form-input" id="exercise-edit-observations" maxlength="500" autocomplete="off">
@@ -698,20 +749,75 @@
 
     <!-- Health: Add exercise modal (bottom-sheet on mobile) -->
     <div class="health-modal-overlay" id="health-exercise-overlay">
-        <div class="health-modal" id="health-exercise-modal">
-            <h3>Registrar Exercício</h3>
+        <div class="health-modal health-exercise-modal-redesign" id="health-exercise-modal">
+            <h3>🏋️ Registrar Exercício</h3>
             <form id="health-exercise-form" autocomplete="off">
-                <label class="health-form-label" for="exercise-activity">Atividade</label>
-                <input type="text" id="exercise-activity" class="health-form-input" placeholder="Ex: Corrida 5km" maxlength="200" required>
 
-                <label class="health-form-label" for="exercise-calories">Calorias queimadas</label>
-                <input type="number" id="exercise-calories" class="health-form-input" placeholder="350" min="1" max="50000" step="any" required>
+                <!-- Activity custom dropdown -->
+                <div class="health-form-group">
+                    <label class="health-form-label">Atividade</label>
+                    <div class="exercise-act-picker" id="exercise-activity-picker"></div>
+                    <input type="text" id="exercise-activity-custom" class="health-form-input exercise-activity-custom hidden" placeholder="Nome da atividade…" maxlength="200" autocomplete="off">
+                </div>
 
-                <label class="health-form-label" for="exercise-duration">Duração (min, opcional)</label>
-                <input type="number" id="exercise-duration" class="health-form-input" placeholder="30" min="1" max="600" step="1">
+                <!-- Calories -->
+                <div class="health-form-group">
+                    <label class="health-form-label" for="exercise-calories">Calorias queimadas (kcal)</label>
+                    <input type="number" id="exercise-calories" class="health-form-input" placeholder="350" min="1" max="50000" step="any" required>
+                </div>
 
-                <label class="health-form-label" for="exercise-observations">Observações (opcional)</label>
-                <input type="text" id="exercise-observations" class="health-form-input" placeholder="Ritmo, séries, etc." maxlength="500">
+                <!-- Duration: hours + minutes dropdowns -->
+                <div class="health-form-group">
+                    <label class="health-form-label">Duração (opcional)</label>
+                    <div class="exercise-duration-row">
+                        <div class="exercise-duration-field">
+                            <select id="exercise-duration-hours" class="health-form-input exercise-duration-select">
+                                <option value="0">0</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                            </select>
+                            <span class="exercise-duration-unit">h</span>
+                        </div>
+                        <div class="exercise-duration-field">
+                            <select id="exercise-duration-mins" class="health-form-input exercise-duration-select">
+                                <option value="0">00</option>
+                                <option value="5">05</option>
+                                <option value="10">10</option>
+                                <option value="15">15</option>
+                                <option value="20">20</option>
+                                <option value="25">25</option>
+                                <option value="30">30</option>
+                                <option value="35">35</option>
+                                <option value="40">40</option>
+                                <option value="45">45</option>
+                                <option value="50">50</option>
+                                <option value="55">55</option>
+                            </select>
+                            <span class="exercise-duration-unit">min</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Effort level -->
+                <div class="health-form-group">
+                    <label class="health-form-label">Nível de esforço: <span id="exercise-effort-display" class="exercise-effort-value">—</span></label>
+                    <div class="exercise-effort-row">
+                        <span class="exercise-effort-bound">0</span>
+                        <input type="range" id="exercise-effort" class="exercise-effort-slider" min="0" max="10" step="1">
+                        <span class="exercise-effort-bound">10</span>
+                    </div>
+                    <p class="exercise-effort-hint">Opcional — toque no slider para registrar</p>
+                </div>
+
+                <!-- Observations -->
+                <div class="health-form-group">
+                    <label class="health-form-label" for="exercise-observations">Observações (opcional)</label>
+                    <input type="text" id="exercise-observations" class="health-form-input" placeholder="Ritmo, séries, distância…" maxlength="500">
+                </div>
 
                 <label class="health-form-checkbox">
                     <input type="checkbox" id="exercise-done" checked>
@@ -829,6 +935,41 @@
                 <button type="submit" class="btn btn-primary health-form-submit" id="bill-submit-btn">Registrar Conta</button>
             </form>
             <button class="modal-close-btn" id="finance-bill-close">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Finance: Add income modal -->
+    <div class="health-modal-overlay" id="finance-income-overlay">
+        <div class="health-modal" id="finance-income-modal">
+            <h3>Registrar Receita</h3>
+            <form id="finance-income-form" autocomplete="off">
+                <label class="health-form-label" for="income-name">Descrição</label>
+                <input type="text" id="income-name" class="health-form-input" placeholder="Ex: Salário" maxlength="200" required>
+
+                <label class="health-form-label" for="income-amount">Valor (R$)</label>
+                <input type="number" id="income-amount" class="health-form-input" placeholder="5000.00" min="0.01" max="99999999.99" step="0.01" required>
+
+                <label class="health-form-label">Categoria</label>
+                <div class="health-chip-group" id="income-category-chips">
+                    <button type="button" class="health-chip active" data-value="Salário">Salário</button>
+                    <button type="button" class="health-chip" data-value="Consultoria">Consultoria</button>
+                    <button type="button" class="health-chip" data-value="Investimentos">Investimentos</button>
+                    <button type="button" class="health-chip" data-value="Transferência">Transferência</button>
+                    <button type="button" class="health-chip" data-value="Outros">Outros</button>
+                </div>
+
+                <label class="health-form-label">Data</label>
+                <div class="ios-dp-wrap">
+                    <button type="button" class="ios-dp-trigger health-form-input" id="income-date-btn">
+                        <svg class="ios-dp-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="2.5" width="13" height="12" rx="2"/><line x1="1.5" y1="6" x2="14.5" y2="6"/><line x1="5" y1="1" x2="5" y2="4"/><line x1="11" y1="1" x2="11" y2="4"/></svg>
+                        <span class="ios-dp-text">Selecionar</span>
+                    </button>
+                    <input type="hidden" id="income-date">
+                </div>
+
+                <button type="submit" class="btn btn-primary health-form-submit" id="income-submit-btn">Registrar Receita</button>
+            </form>
+            <button class="modal-close-btn" id="finance-income-close">Cancelar</button>
         </div>
     </div>
 

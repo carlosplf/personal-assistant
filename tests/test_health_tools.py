@@ -12,6 +12,7 @@ USER_ID = "web:testuser"
 @pytest.fixture(autouse=True)
 def _set_db_path(tmp_path, monkeypatch):
     monkeypatch.setenv("ASSISTANT_MEMORY_PATH", str(tmp_path / "tools_test.sqlite3"))
+    monkeypatch.setenv("CREDENTIAL_ENCRYPTION_KEY", "_mtPmvrlH22JoC3o3KLUObMoMqYxlXs7aeaNO4kHdoE=")
 
 
 @pytest.fixture
@@ -30,12 +31,27 @@ def fresh_store(tmp_path):
     return store
 
 
+@pytest.fixture
+def fresh_finance_store(tmp_path):
+    """Return a fresh FinanceStore for finance tool tests."""
+    from assistant_connector.finance_store import FinanceStore
+    db = str(tmp_path / "tools_test.sqlite3")
+    store = FinanceStore(db_path=db, encryption_key="_mtPmvrlH22JoC3o3KLUObMoMqYxlXs7aeaNO4kHdoE=")
+    return store
+
+
 @pytest.fixture(autouse=True)
-def patch_store(fresh_store):
+def patch_store(fresh_store, fresh_finance_store):
     """Patch the module-level singletons so all tools use the tmp store."""
     with patch("assistant_connector.tools.health_tools._health_store", fresh_store), \
-         patch("assistant_connector.tools.finance_tools._health_store", fresh_store):
+         patch("assistant_connector.tools.finance_tools._finance_store", fresh_finance_store):
         yield fresh_store
+
+
+@pytest.fixture
+def fin_store(fresh_finance_store):
+    """Expose the FinanceStore for tests that insert/query financial data."""
+    return fresh_finance_store
 
 
 # ---------------------------------------------------------------------------
@@ -336,10 +352,10 @@ class TestAnalyzeExpenses:
         assert result["expenses_count"] == 0
         assert result["total_spent"] == 0.0
 
-    def test_with_expenses(self, ctx, patch_store):
-        patch_store.create_expense(user_id=USER_ID, name="Aluguel", amount=1200.0,
+    def test_with_expenses(self, ctx, fin_store):
+        fin_store.create_expense(user_id=USER_ID, name="Aluguel", amount=1200.0,
                                    category="Moradia", date="2025-06-01")
-        patch_store.create_expense(user_id=USER_ID, name="Internet", amount=80.0,
+        fin_store.create_expense(user_id=USER_ID, name="Internet", amount=80.0,
                                    category="Moradia", date="2025-06-10")
         from assistant_connector.tools.finance_tools import analyze_expenses
         result = analyze_expenses({"month": "2025-06"}, ctx)
@@ -357,8 +373,8 @@ class TestListBills:
         result = list_bills({"month": "2025-06"}, ctx)
         assert result["bills"] == []
 
-    def test_with_unpaid_bill(self, ctx, patch_store):
-        patch_store.create_bill(user_id=USER_ID, bill_name="Internet",
+    def test_with_unpaid_bill(self, ctx, fin_store):
+        fin_store.create_bill(user_id=USER_ID, bill_name="Internet",
                                 budget=100.0, reference_month="2025-06")
         from assistant_connector.tools.finance_tools import list_bills
         result = list_bills({"month": "2025-06"}, ctx)
@@ -371,8 +387,8 @@ class TestListBills:
 # ---------------------------------------------------------------------------
 
 class TestPayBill:
-    def test_pay_success(self, ctx, patch_store):
-        bill = patch_store.create_bill(user_id=USER_ID, bill_name="Rent",
+    def test_pay_success(self, ctx, fin_store):
+        bill = fin_store.create_bill(user_id=USER_ID, bill_name="Rent",
                                        budget=1500.0, reference_month="2025-06")
         from assistant_connector.tools.finance_tools import pay_bill
         result = pay_bill({"bill_id": bill["id"], "paid_amount": 1500.0}, ctx)
@@ -394,8 +410,8 @@ class TestAnalyzeBills:
         result = analyze_bills({"month": "2025-06"}, ctx)
         assert result["total_bills"] == 0
 
-    def test_with_bills(self, ctx, patch_store):
-        patch_store.create_bill(user_id=USER_ID, bill_name="Streaming",
+    def test_with_bills(self, ctx, fin_store):
+        fin_store.create_bill(user_id=USER_ID, bill_name="Streaming",
                                 budget=50.0, reference_month="2025-06")
         from assistant_connector.tools.finance_tools import analyze_bills
         result = analyze_bills({"month": "2025-06"}, ctx)
@@ -693,9 +709,9 @@ class TestListExpenses:
         result = list_expenses({}, ctx)
         assert result["total"] == 0
 
-    def test_with_data(self, ctx, patch_store):
+    def test_with_data(self, ctx, fin_store):
         from utils.timezone_utils import today_iso_in_configured_timezone
-        patch_store.create_expense(user_id=USER_ID, name="Coffee", amount=5.0,
+        fin_store.create_expense(user_id=USER_ID, name="Coffee", amount=5.0,
                                     category="Alimentação",
                                     date=today_iso_in_configured_timezone())
         from assistant_connector.tools.finance_tools import list_expenses
@@ -714,9 +730,9 @@ class TestListExpenses:
 # ---------------------------------------------------------------------------
 
 class TestEditExpense:
-    def test_edit_success(self, ctx, patch_store):
+    def test_edit_success(self, ctx, fin_store):
         from utils.timezone_utils import today_iso_in_configured_timezone
-        exp = patch_store.create_expense(user_id=USER_ID, name="Coffee", amount=5.0,
+        exp = fin_store.create_expense(user_id=USER_ID, name="Coffee", amount=5.0,
                                           category="Alimentação",
                                           date=today_iso_in_configured_timezone())
         from assistant_connector.tools.finance_tools import edit_expense
@@ -734,9 +750,9 @@ class TestEditExpense:
 # ---------------------------------------------------------------------------
 
 class TestDeleteExpense:
-    def test_delete_success(self, ctx, patch_store):
+    def test_delete_success(self, ctx, fin_store):
         from utils.timezone_utils import today_iso_in_configured_timezone
-        exp = patch_store.create_expense(user_id=USER_ID, name="Coffee", amount=5.0,
+        exp = fin_store.create_expense(user_id=USER_ID, name="Coffee", amount=5.0,
                                           category="Alimentação",
                                           date=today_iso_in_configured_timezone())
         from assistant_connector.tools.finance_tools import delete_expense
@@ -776,8 +792,8 @@ class TestRegisterBill:
 # ---------------------------------------------------------------------------
 
 class TestEditBill:
-    def test_edit_success(self, ctx, patch_store):
-        bill = patch_store.create_bill(user_id=USER_ID, bill_name="Internet",
+    def test_edit_success(self, ctx, fin_store):
+        bill = fin_store.create_bill(user_id=USER_ID, bill_name="Internet",
                                         budget=99.90, category="Moradia")
         from assistant_connector.tools.finance_tools import edit_bill
         result = edit_bill({"bill_id": bill["id"], "budget": 109.90}, ctx)
@@ -788,8 +804,8 @@ class TestEditBill:
         with pytest.raises(ValueError, match="bill_id"):
             edit_bill({}, ctx)
 
-    def test_no_fields_raises(self, ctx, patch_store):
-        bill = patch_store.create_bill(user_id=USER_ID, bill_name="Internet",
+    def test_no_fields_raises(self, ctx, fin_store):
+        bill = fin_store.create_bill(user_id=USER_ID, bill_name="Internet",
                                         budget=99.90, category="Moradia")
         from assistant_connector.tools.finance_tools import edit_bill
         with pytest.raises(ValueError, match="At least one"):
@@ -801,8 +817,8 @@ class TestEditBill:
 # ---------------------------------------------------------------------------
 
 class TestDeleteBill:
-    def test_delete_success(self, ctx, patch_store):
-        bill = patch_store.create_bill(user_id=USER_ID, bill_name="Internet",
+    def test_delete_success(self, ctx, fin_store):
+        bill = fin_store.create_bill(user_id=USER_ID, bill_name="Internet",
                                         budget=99.90, category="Moradia")
         from assistant_connector.tools.finance_tools import delete_bill
         result = delete_bill({"bill_id": bill["id"]}, ctx)

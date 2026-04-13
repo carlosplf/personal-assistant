@@ -18,6 +18,7 @@ _assistant_service = None
 _google_oauth: Optional[WebGoogleOAuth] = None
 _credential_store = None
 _health_store = None
+_finance_store = None
 
 
 def get_user_store() -> WebUserStore:
@@ -102,6 +103,21 @@ def get_health_store():
         db_path = os.getenv("ASSISTANT_MEMORY_PATH", default_path)
         _health_store = HealthStore(db_path=db_path)
     return _health_store
+
+
+def get_finance_store():
+    global _finance_store
+    if _finance_store is None:
+        load_dotenv()
+        from assistant_connector.finance_store import FinanceStore
+
+        default_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "assistant_memory.sqlite3")
+        )
+        db_path = os.getenv("ASSISTANT_MEMORY_PATH", default_path)
+        encryption_key = os.getenv("CREDENTIAL_ENCRYPTION_KEY", "")
+        _finance_store = FinanceStore(db_path=db_path, encryption_key=encryption_key)
+    return _finance_store
 
 
 async def get_current_user_flexible(

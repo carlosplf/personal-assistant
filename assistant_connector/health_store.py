@@ -186,49 +186,7 @@ class HealthStore:
                 CREATE INDEX IF NOT EXISTS idx_health_exercises_user_activity
                     ON health_exercises (user_id, activity, date)
             """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS financial_expenses (
-                    id TEXT PRIMARY KEY,
-                    user_id TEXT NOT NULL,
-                    name TEXT NOT NULL,
-                    amount REAL NOT NULL,
-                    category TEXT NOT NULL DEFAULT 'Outros',
-                    description TEXT NOT NULL DEFAULT '',
-                    date TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                )
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_financial_expenses_user_date
-                    ON financial_expenses (user_id, date)
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_financial_expenses_user_cat
-                    ON financial_expenses (user_id, category, date)
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS financial_bills (
-                    id TEXT PRIMARY KEY,
-                    user_id TEXT NOT NULL,
-                    bill_name TEXT NOT NULL,
-                    budget REAL NOT NULL,
-                    paid_amount REAL NOT NULL DEFAULT 0,
-                    paid INTEGER NOT NULL DEFAULT 0,
-                    category TEXT NOT NULL DEFAULT 'Outros',
-                    due_date TEXT,
-                    reference_month TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                )
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_financial_bills_user_month
-                    ON financial_bills (user_id, reference_month)
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_financial_bills_user_paid
-                    ON financial_bills (user_id, paid, reference_month)
-            """)
+            # Financial tables (expenses, bills, income) are managed by FinanceStore.
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS user_health_goals (
                     user_id TEXT PRIMARY KEY,
@@ -241,6 +199,11 @@ class HealthStore:
             # Migration: add duration_minutes to existing health_exercises tables
             try:
                 conn.execute("ALTER TABLE health_exercises ADD COLUMN duration_minutes INTEGER")
+            except Exception:
+                pass  # column already exists
+            # Migration: add effort_level (0-10, optional) to existing health_exercises tables
+            try:
+                conn.execute("ALTER TABLE health_exercises ADD COLUMN effort_level INTEGER")
             except Exception:
                 pass  # column already exists
 
@@ -544,6 +507,7 @@ class HealthStore:
         observations: str = "",
         done: Optional[bool] = None,
         duration_minutes: Optional[int] = None,
+        effort_level: Optional[int] = None,
     ) -> dict:
         exercise_id = uuid.uuid4().hex
         now = _utc_now_iso()
@@ -557,11 +521,11 @@ class HealthStore:
             conn.execute(
                 """
                 INSERT INTO health_exercises
-                  (id, user_id, activity, calories, date, observations, done, duration_minutes, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  (id, user_id, activity, calories, date, observations, done, duration_minutes, effort_level, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (exercise_id, user_id, activity.strip(), calories, exercise_date,
-                 observations or "", 1 if done else 0, duration_minutes, now, now),
+                 observations or "", 1 if done else 0, duration_minutes, effort_level, now, now),
             )
         return {
             "id": exercise_id,
@@ -571,6 +535,7 @@ class HealthStore:
             "observations": observations or "",
             "done": done,
             "duration_minutes": duration_minutes,
+            "effort_level": effort_level,
         }
 
     def update_exercise(self, user_id: str, exercise_id: str, **kwargs) -> dict:
@@ -599,6 +564,10 @@ class HealthStore:
             dm = kwargs["duration_minutes"]
             updates.append("duration_minutes = ?")
             params.append(int(dm) if dm is not None else None)
+        if "effort_level" in kwargs:
+            el = kwargs["effort_level"]
+            updates.append("effort_level = ?")
+            params.append(int(el) if el is not None else None)
         params.extend([exercise_id, user_id])
         sql = f"UPDATE health_exercises SET {', '.join(updates)} WHERE id = ? AND user_id = ?"
         with self._lock, self._connect() as conn:
@@ -652,6 +621,7 @@ class HealthStore:
             "observations": r.get("observations", ""),
             "done": bool(r.get("done", 1)),
             "duration_minutes": r.get("duration_minutes"),
+            "effort_level": r.get("effort_level"),
         }
 
     def delete_exercise(self, user_id: str, exercise_id: str) -> bool:
@@ -703,255 +673,3 @@ class HealthStore:
                 (user_id, cg, ecg, etg, now),
             )
         return {"calorie_goal": cg, "exercise_calorie_goal": ecg, "exercise_time_goal": etg}
-
-    # ---- Expenses ----
-
-    def create_expense(
-        self,
-        user_id: str,
-        name: str,
-        amount: float,
-        category: str = "Outros",
-        description: str = "",
-        date: Optional[str] = None,
-    ) -> dict:
-        if amount <= 0:
-            raise ValueError("amount must be greater than zero")
-        expense_id = uuid.uuid4().hex
-        now = _utc_now_iso()
-        expense_date = date or datetime.date.today().isoformat()
-        with self._lock, self._connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO financial_expenses
-                  (id, user_id, name, amount, category, description, date, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (expense_id, user_id, name.strip(), amount,
-                 category or "Outros", description or "", expense_date, now),
-            )
-        return {
-            "id": expense_id,
-            "name": name.strip(),
-            "amount": amount,
-            "category": category or "Outros",
-            "description": description or "",
-            "date": expense_date,
-        }
-
-    def list_expenses_by_date_range(
-        self,
-        user_id: str,
-        start_date: str,
-        end_date: str,
-    ) -> list[dict]:
-        with self._lock, self._connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT * FROM financial_expenses
-                WHERE user_id = ? AND date >= ? AND date <= ?
-                ORDER BY date ASC, created_at ASC
-                """,
-                (user_id, start_date[:10], end_date[:10]),
-            ).fetchall()
-        return [self._expense_row_to_dict(r) for r in rows]
-
-    @staticmethod
-    def _expense_row_to_dict(row) -> dict:
-        r = dict(row)
-        return {
-            "id": r["id"],
-            "name": r["name"],
-            "amount": float(r["amount"]),
-            "category": r.get("category", "Outros"),
-            "description": r.get("description", ""),
-            "date": r["date"],
-        }
-
-    def update_expense(self, user_id: str, expense_id: str, **kwargs) -> dict:
-        updates = []
-        params: list = []
-        for col in ("name", "category", "description", "date"):
-            if col in kwargs:
-                val = str(kwargs[col]).strip()
-                if col == "name" and not val:
-                    raise ValueError("name cannot be empty")
-                updates.append(f"{col} = ?")
-                params.append(val)
-        if "amount" in kwargs:
-            amt = float(kwargs["amount"])
-            if amt <= 0:
-                raise ValueError("amount must be greater than zero")
-            updates.append("amount = ?")
-            params.append(amt)
-        if not updates:
-            raise ValueError("At least one field to update is required")
-        params.extend([expense_id, user_id])
-        sql = f"UPDATE financial_expenses SET {', '.join(updates)} WHERE id = ? AND user_id = ?"
-        with self._lock, self._connect() as conn:
-            cursor = conn.execute(sql, params)
-            if cursor.rowcount == 0:
-                raise ValueError(f"Expense {expense_id!r} not found")
-            row = conn.execute("SELECT * FROM financial_expenses WHERE id = ?", (expense_id,)).fetchone()
-        return self._expense_row_to_dict(row)
-
-    def update_bill(self, user_id: str, bill_id: str, **kwargs) -> dict:
-        now = _utc_now_iso()
-        updates = ["updated_at = ?"]
-        params: list = [now]
-        for col in ("bill_name", "category", "due_date", "reference_month"):
-            if col in kwargs:
-                val = str(kwargs[col]).strip() if kwargs[col] is not None else None
-                if col == "bill_name" and not val:
-                    raise ValueError("bill_name cannot be empty")
-                updates.append(f"{col} = ?")
-                params.append(val)
-        if "budget" in kwargs:
-            b = float(kwargs["budget"])
-            if b <= 0:
-                raise ValueError("budget must be greater than zero")
-            updates.append("budget = ?")
-            params.append(b)
-        if "paid" in kwargs:
-            updates.append("paid = ?")
-            params.append(1 if kwargs["paid"] else 0)
-        if "paid_amount" in kwargs:
-            updates.append("paid_amount = ?")
-            params.append(float(kwargs["paid_amount"]))
-        params.extend([bill_id, user_id])
-        sql = f"UPDATE financial_bills SET {', '.join(updates)} WHERE id = ? AND user_id = ?"
-        with self._lock, self._connect() as conn:
-            cursor = conn.execute(sql, params)
-            if cursor.rowcount == 0:
-                raise ValueError(f"Bill {bill_id!r} not found")
-            row = conn.execute("SELECT * FROM financial_bills WHERE id = ?", (bill_id,)).fetchone()
-        return self._bill_row_to_dict(row)
-
-    # ---- Bills ----
-
-    def create_bill(
-        self,
-        user_id: str,
-        bill_name: str,
-        budget: float,
-        category: str = "Outros",
-        due_date: Optional[str] = None,
-        reference_month: Optional[str] = None,
-    ) -> dict:
-        if budget <= 0:
-            raise ValueError("budget must be greater than zero")
-        bill_id = uuid.uuid4().hex
-        now = _utc_now_iso()
-        if reference_month is None:
-            reference_month = datetime.date.today().strftime("%Y-%m")
-        with self._lock, self._connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO financial_bills
-                  (id, user_id, bill_name, budget, paid_amount, paid, category, due_date, reference_month, created_at, updated_at)
-                VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?)
-                """,
-                (bill_id, user_id, bill_name.strip(), budget,
-                 category or "Outros", due_date, reference_month, now, now),
-            )
-        return {
-            "id": bill_id,
-            "bill_name": bill_name.strip(),
-            "budget": budget,
-            "paid_amount": 0.0,
-            "paid": False,
-            "category": category or "Outros",
-            "due_date": due_date,
-            "reference_month": reference_month,
-        }
-
-    def list_bills_by_month(
-        self,
-        user_id: str,
-        reference_month: str,
-        unpaid_only: bool = False,
-    ) -> list[dict]:
-        with self._lock, self._connect() as conn:
-            if unpaid_only:
-                rows = conn.execute(
-                    """
-                    SELECT * FROM financial_bills
-                    WHERE user_id = ? AND reference_month = ? AND paid = 0
-                    ORDER BY due_date ASC, created_at ASC
-                    """,
-                    (user_id, reference_month),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    """
-                    SELECT * FROM financial_bills
-                    WHERE user_id = ? AND reference_month = ?
-                    ORDER BY due_date ASC, created_at ASC
-                    """,
-                    (user_id, reference_month),
-                ).fetchall()
-        return [self._bill_row_to_dict(r) for r in rows]
-
-    def update_bill_payment(
-        self,
-        user_id: str,
-        bill_id: str,
-        paid: bool,
-        paid_amount: Optional[float] = None,
-    ) -> dict:
-        now = _utc_now_iso()
-        updates = ["paid = ?", "updated_at = ?"]
-        params: list = [1 if paid else 0, now]
-        if paid_amount is not None:
-            updates.append("paid_amount = ?")
-            params.append(float(paid_amount))
-        params.extend([bill_id, user_id])
-        sql = f"UPDATE financial_bills SET {', '.join(updates)} WHERE id = ? AND user_id = ?"
-        with self._lock, self._connect() as conn:
-            cursor = conn.execute(sql, params)
-            if cursor.rowcount == 0:
-                raise ValueError(f"Bill {bill_id!r} not found")
-            row = conn.execute("SELECT * FROM financial_bills WHERE id = ?", (bill_id,)).fetchone()
-        return self._bill_row_to_dict(row)
-
-    def delete_bill(self, user_id: str, bill_id: str) -> bool:
-        with self._lock, self._connect() as conn:
-            cursor = conn.execute(
-                "DELETE FROM financial_bills WHERE id = ? AND user_id = ?",
-                (bill_id, user_id),
-            )
-        return cursor.rowcount > 0
-
-    @staticmethod
-    def _bill_row_to_dict(row) -> dict:
-        r = dict(row)
-        return {
-            "id": r["id"],
-            "bill_name": r["bill_name"],
-            "budget": float(r["budget"]),
-            "paid_amount": float(r.get("paid_amount", 0)),
-            "paid": bool(r.get("paid", 0)),
-            "category": r.get("category", "Outros"),
-            "due_date": r.get("due_date"),
-            "reference_month": r["reference_month"],
-        }
-
-    # ---- Expense helpers ----
-
-    def delete_expense(self, user_id: str, expense_id: str) -> bool:
-        with self._lock, self._connect() as conn:
-            cursor = conn.execute(
-                "DELETE FROM financial_expenses WHERE id = ? AND user_id = ?",
-                (expense_id, user_id),
-            )
-        return cursor.rowcount > 0
-
-    def list_expenses_by_month(
-        self,
-        user_id: str,
-        month: str,
-    ) -> list[dict]:
-        """List expenses for a YYYY-MM month."""
-        start = month[:7] + "-01"
-        end = month[:7] + "-31"
-        return self.list_expenses_by_date_range(user_id, start, end)

@@ -274,6 +274,26 @@ class TestCreateExercise:
         assert data["exercise"]["activity"] == "Running"
         assert "id" in data["exercise"]
 
+    def test_create_exercise_with_effort_level(self, client, auth_token):
+        res = client.post("/api/health/exercises", json={
+            "activity": "Musculação", "calories": 250, "effort_level": 8
+        }, headers=_auth(auth_token))
+        assert res.status_code == 200
+        assert res.json()["exercise"]["effort_level"] == 8
+
+    def test_create_exercise_effort_level_invalid(self, client, auth_token):
+        res = client.post("/api/health/exercises", json={
+            "activity": "Corrida", "calories": 300, "effort_level": 11
+        }, headers=_auth(auth_token))
+        assert res.status_code == 400
+
+    def test_create_exercise_effort_level_zero(self, client, auth_token):
+        res = client.post("/api/health/exercises", json={
+            "activity": "Alongamento", "calories": 80, "effort_level": 0
+        }, headers=_auth(auth_token))
+        assert res.status_code == 200
+        assert res.json()["exercise"]["effort_level"] == 0
+
     def test_activity_too_long(self, client, auth_token):
         res = client.post("/api/health/exercises", json={
             "activity": "A" * 201, "calories": 100
@@ -331,6 +351,29 @@ class TestUpdateExercise:
         data = update_res.json()
         assert data["done"] is True
         assert data["calories"] == 250.0
+
+    def test_update_exercise_with_effort_level(self, client, auth_token):
+        create_res = client.post("/api/health/exercises", json={
+            "activity": "Corrida", "calories": 300
+        }, headers=_auth(auth_token))
+        exercise_id = create_res.json()["exercise"]["id"]
+
+        update_res = client.patch(f"/api/health/exercises/{exercise_id}", json={
+            "effort_level": 7
+        }, headers=_auth(auth_token))
+        assert update_res.status_code == 200
+        assert update_res.json()["effort_level"] == 7
+
+    def test_update_exercise_effort_level_invalid(self, client, auth_token):
+        create_res = client.post("/api/health/exercises", json={
+            "activity": "Bike", "calories": 180
+        }, headers=_auth(auth_token))
+        exercise_id = create_res.json()["exercise"]["id"]
+
+        res = client.patch(f"/api/health/exercises/{exercise_id}", json={
+            "effort_level": -1
+        }, headers=_auth(auth_token))
+        assert res.status_code == 400
 
 
 # ---- Nutritional analysis tests ----
