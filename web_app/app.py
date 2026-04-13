@@ -1011,7 +1011,8 @@ async def health_nutritional_analysis(
                 start_date=start.isoformat(),
                 end_date=end.isoformat(),
             )
-        except Exception:
+        except Exception as exc:
+            logger.error("Failed to fetch meals for analysis: %s", exc)
             return []
 
     async def fetch_exercises():
@@ -1022,17 +1023,21 @@ async def health_nutritional_analysis(
                 start_date=start.isoformat(),
                 end_date=end.isoformat(),
             )
-        except Exception:
+        except Exception as exc:
+            logger.error("Failed to fetch exercises for analysis: %s", exc)
             return []
 
     async def fetch_goals():
         try:
             goals = await asyncio.to_thread(store.get_health_goals, user_id)
             return goals.get("calorie_goal")
-        except Exception:
+        except Exception as exc:
+            logger.error("Failed to fetch health goals for analysis: %s", exc)
             return None
 
     meals, exercises, calorie_goal = await asyncio.gather(fetch_meals(), fetch_exercises(), fetch_goals())
+
+    logger.info("Health analysis: %d meals, %d exercises for %s to %s", len(meals), len(exercises), start, end)
 
     try:
         analysis = await asyncio.to_thread(

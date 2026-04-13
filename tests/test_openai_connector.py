@@ -545,6 +545,50 @@ class TestEstimateCalories(unittest.TestCase):
             result = llm_api.generate_nutritional_analysis(meals, [])
         self.assertIsInstance(result, str)
 
+    def test_generate_nutritional_analysis_includes_exercises(self):
+        """Exercise data must appear in the prompt sent to the LLM."""
+        captured = {}
+        fake_client = unittest.mock.Mock()
+
+        def fake_create(**kwargs):
+            captured["input"] = kwargs.get("input", "")
+            return _FakeResponse("## Análise\nOk.")
+
+        fake_client.responses.create.side_effect = fake_create
+        with unittest.mock.patch.object(llm_api, "_create_openai_client", return_value=fake_client):
+            meals = [{"food": "Arroz", "meal_type": "ALMOÇO", "quantity": "200g", "calories": 300, "date": "2026-04-01"}]
+            exercises = [
+                {"activity": "Corrida", "calories": 400, "duration_minutes": 30, "date": "2026-04-01", "effort_level": 7},
+                {"activity": "Musculação", "calories": 250, "duration_minutes": 45, "date": "2026-04-02"},
+            ]
+            result = llm_api.generate_nutritional_analysis(meals, exercises, calorie_goal=2200)
+        self.assertIn("Corrida", captured["input"])
+        self.assertIn("400", captured["input"])
+        self.assertIn("30 min", captured["input"])
+        self.assertIn("esforço 7/10", captured["input"])
+        self.assertIn("Musculação", captured["input"])
+        self.assertIn("250", captured["input"])
+        self.assertIsInstance(result, str)
+
+    def test_generate_nutritional_analysis_exercises_before_meals(self):
+        """Exercises section must appear before meals so it is never truncated."""
+        captured = {}
+        fake_client = unittest.mock.Mock()
+
+        def fake_create(**kwargs):
+            captured["input"] = kwargs.get("input", "")
+            return _FakeResponse("## Análise\nOk.")
+
+        fake_client.responses.create.side_effect = fake_create
+        with unittest.mock.patch.object(llm_api, "_create_openai_client", return_value=fake_client):
+            meals = [{"food": "Arroz", "meal_type": "ALMOÇO", "quantity": "200g", "calories": 300, "date": "2026-04-01"}]
+            exercises = [{"activity": "Yoga", "calories": 100, "date": "2026-04-01"}]
+            llm_api.generate_nutritional_analysis(meals, exercises)
+        prompt = captured["input"]
+        ex_pos = prompt.index("Exercícios dos últimos")
+        meals_pos = prompt.index("Refeições dos últimos")
+        self.assertLess(ex_pos, meals_pos, "Exercises section must come before meals")
+
 
 class TestEstimateCaloriesBatch(unittest.TestCase):
     """Tests for estimate_calories_batch — single LLM call for all meal items."""

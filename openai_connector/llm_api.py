@@ -468,7 +468,23 @@ def generate_nutritional_analysis(
     lines = []
     if calorie_goal:
         lines.append(f"## Meta calórica diária do usuário: {calorie_goal} kcal\n")
-    lines.append("## Refeições dos últimos 7 dias\n")
+
+    # Exercises first — ensures they are never truncated away
+    lines.append("## Exercícios dos últimos 7 dias\n")
+    if exercises:
+        for e in exercises:
+            activity = e.get("activity", "?")
+            cal = e.get("calories", 0)
+            dur = e.get("duration_minutes")
+            date = str(e.get("date", ""))[:10]
+            dur_str = f", {dur} min" if dur else ""
+            effort = e.get("effort_level")
+            effort_str = f", esforço {effort}/10" if effort else ""
+            lines.append(f"- [{date}] {activity} — {cal} kcal{dur_str}{effort_str}")
+    else:
+        lines.append("_Nenhum exercício registrado._")
+
+    lines.append("\n## Refeições dos últimos 7 dias\n")
     if meals:
         for m in meals:
             food = m.get("food", "?")
@@ -480,21 +496,9 @@ def generate_nutritional_analysis(
     else:
         lines.append("_Nenhuma refeição registrada._")
 
-    lines.append("\n## Exercícios dos últimos 7 dias\n")
-    if exercises:
-        for e in exercises:
-            activity = e.get("activity", "?")
-            cal = e.get("calories", 0)
-            dur = e.get("duration_minutes")
-            date = str(e.get("date", ""))[:10]
-            dur_str = f", {dur} min" if dur else ""
-            lines.append(f"- [{date}] {activity} — {cal} kcal{dur_str}")
-    else:
-        lines.append("_Nenhum exercício registrado._")
-
     data_text = "\n".join(lines)
-    if len(data_text) > 4000:
-        data_text = data_text[:4000] + "\n... (dados truncados)"
+    if len(data_text) > 8000:
+        data_text = data_text[:8000] + "\n... (dados truncados)"
 
     openai_client = _create_openai_client()
     llm_model = _get_llm_model()
