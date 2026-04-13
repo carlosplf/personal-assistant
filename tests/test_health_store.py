@@ -320,3 +320,28 @@ class TestBills:
         fstore.create_bill(user_id=USER, bill_name="Rent", budget=1000.0, reference_month="2025-06")
         bills = fstore.list_bills_by_month(user_id=OTHER_USER, reference_month="2025-06")
         assert bills == []
+
+    def test_create_bill_with_due_day(self, fstore):
+        bill = fstore.create_bill(
+            user_id=USER, bill_name="Aluguel", budget=1500.0,
+            reference_month="2025-06", due_day=5,
+        )
+        assert bill["due_day"] == 5
+
+    def test_create_bill_invalid_due_day(self, fstore):
+        with pytest.raises(ValueError, match="due_day"):
+            fstore.create_bill(user_id=USER, bill_name="X", budget=100, due_day=0)
+        with pytest.raises(ValueError, match="due_day"):
+            fstore.create_bill(user_id=USER, bill_name="X", budget=100, due_day=32)
+
+    def test_update_bill_due_day(self, fstore):
+        bill = fstore.create_bill(user_id=USER, bill_name="Net", budget=100, reference_month="2025-06")
+        updated = fstore.update_bill(user_id=USER, bill_id=bill["id"], due_day=15)
+        assert updated["due_day"] == 15
+
+    def test_bills_ordered_by_due_day(self, fstore):
+        fstore.create_bill(user_id=USER, bill_name="Late", budget=100, reference_month="2025-06", due_day=25)
+        fstore.create_bill(user_id=USER, bill_name="Early", budget=100, reference_month="2025-06", due_day=5)
+        bills = fstore.list_bills_by_month(user_id=USER, reference_month="2025-06")
+        assert bills[0]["bill_name"] == "Early"
+        assert bills[1]["bill_name"] == "Late"

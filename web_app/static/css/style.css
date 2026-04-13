@@ -3568,6 +3568,24 @@ input[type="checkbox"]:focus-visible {
     margin-top: 2px;
 }
 
+.finance-due-day-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.finance-due-day-input {
+    width: 80px !important;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.finance-due-day-hint {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
 .finance-bill-amount {
     font-size: 0.9rem;
     font-weight: 600;

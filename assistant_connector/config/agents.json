@@ -886,9 +886,9 @@
             "type": "string",
             "description": "Categoria (Moradia, Saúde, etc.)"
           },
-          "due_date": {
-            "type": "string",
-            "description": "Data de vencimento (YYYY-MM-DD)"
+          "due_day": {
+            "type": "integer",
+            "description": "Dia do vencimento no mês (1-31)"
           },
           "reference_month": {
             "type": "string",
@@ -959,9 +959,9 @@
             "type": "string",
             "description": "Nova categoria"
           },
-          "due_date": {
-            "type": "string",
-            "description": "Nova data de vencimento (YYYY-MM-DD)"
+          "due_day": {
+            "type": "integer",
+            "description": "Novo dia do vencimento no mês (1-31)"
           },
           "paid": {
             "type": "boolean",

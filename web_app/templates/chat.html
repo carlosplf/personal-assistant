@@ -923,13 +923,10 @@
                     <button type="button" class="health-chip active" data-value="Outros">Outros</button>
                 </div>
 
-                <label class="health-form-label">Vencimento</label>
-                <div class="ios-dp-wrap">
-                    <button type="button" class="ios-dp-trigger health-form-input" id="bill-due-date-btn">
-                        <svg class="ios-dp-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="2.5" width="13" height="12" rx="2"/><line x1="1.5" y1="6" x2="14.5" y2="6"/><line x1="5" y1="1" x2="5" y2="4"/><line x1="11" y1="1" x2="11" y2="4"/></svg>
-                        <span class="ios-dp-text">Selecionar</span>
-                    </button>
-                    <input type="hidden" id="bill-due-date">
+                <label class="health-form-label">Dia do vencimento</label>
+                <div class="finance-due-day-wrap">
+                    <input type="number" id="bill-due-day" class="health-form-input finance-due-day-input" placeholder="Ex: 10" min="1" max="31" step="1">
+                    <span class="finance-due-day-hint">de cada mês</span>
                 </div>
 
                 <button type="submit" class="btn btn-primary health-form-submit" id="bill-submit-btn">Registrar Conta</button>

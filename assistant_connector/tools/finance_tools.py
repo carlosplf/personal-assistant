@@ -419,12 +419,11 @@ def register_bill(arguments, context):
         raise ValueError("budget must be > 0")
     raw_cat = str(arguments.get("category", arguments.get("categoria", "Outros"))).strip()
     category = _normalize_expense_category(raw_cat, bill_name)
-    due_date = arguments.get("due_date", arguments.get("vencimento"))
-    if due_date:
-        due_date = str(due_date).strip()[:10]
-        datetime.date.fromisoformat(due_date)
-    else:
-        due_date = None
+    due_day = arguments.get("due_day", arguments.get("vencimento"))
+    if due_day is not None:
+        due_day = int(due_day)
+        if not (1 <= due_day <= 31):
+            raise ValueError("due_day must be between 1 and 31")
     ref_month = arguments.get("reference_month", arguments.get("mes"))
     if ref_month:
         ref_month = str(ref_month).strip()[:7]
@@ -435,7 +434,7 @@ def register_bill(arguments, context):
         bill_name=bill_name,
         budget=budget,
         category=category,
-        due_date=due_date,
+        due_day=due_day,
         reference_month=ref_month,
     )
     return {"status": "created", "bill": result}
@@ -454,11 +453,13 @@ def edit_bill(arguments, context):
         desc = kwargs.get("bill_name", "")
         kwargs["category"] = _normalize_expense_category(
             str(arguments.get("category", arguments.get("categoria", ""))), desc)
-    if "due_date" in arguments or "vencimento" in arguments:
-        d = str(arguments.get("due_date", arguments.get("vencimento", ""))).strip()
-        if d:
-            datetime.date.fromisoformat(d[:10])
-            kwargs["due_date"] = d[:10]
+    if "due_day" in arguments or "vencimento" in arguments:
+        d = arguments.get("due_day", arguments.get("vencimento"))
+        if d is not None:
+            d = int(d)
+            if not (1 <= d <= 31):
+                raise ValueError("due_day must be between 1 and 31")
+            kwargs["due_day"] = d
     if "paid" in arguments:
         kwargs["paid"] = _read_optional_boolean(arguments, "paid")
     if "paid_amount" in arguments:

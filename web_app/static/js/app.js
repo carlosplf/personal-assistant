@@ -3542,7 +3542,7 @@
             return;
         }
 
-        var today = new Date().toISOString().slice(0, 10);
+        var todayDay = new Date().getDate();
         var paidCount = bills.filter(function (b) { return b.paid; }).length;
         var unpaid = bills.filter(function (b) { return !b.paid; });
         var paid = bills.filter(function (b) { return b.paid; });
@@ -3559,12 +3559,12 @@
             if (bill.paid) {
                 badgeClass = 'badge-paid';
                 badgeText = 'Pago';
-            } else if (bill.due_date && bill.due_date < today) {
+            } else if (bill.due_day && bill.due_day < todayDay) {
                 badgeClass = 'badge-overdue';
                 badgeText = 'Vencido';
             }
 
-            var dueMeta = bill.due_date ? 'Venc. ' + formatDateShort(bill.due_date) : '';
+            var dueMeta = bill.due_day ? 'Dia ' + bill.due_day : '';
             if (bill.category && bill.category !== 'Outros') {
                 dueMeta = (dueMeta ? dueMeta + ' · ' : '') + bill.category;
             }
@@ -3820,12 +3820,13 @@
         billSubmitBtn.textContent = 'Registrando…';
 
         var activeChip = document.querySelector('#bill-category-chips .health-chip.active');
+        var dueDayVal = document.getElementById('bill-due-day').value;
         try {
             await apiPost('/api/finance/bills', {
                 bill_name: document.getElementById('bill-name').value.trim(),
                 budget: parseFloat(document.getElementById('bill-budget').value),
                 category: activeChip ? activeChip.dataset.value : 'Outros',
-                due_date: document.getElementById('bill-due-date').value || undefined,
+                due_day: dueDayVal ? parseInt(dueDayVal, 10) : undefined,
                 reference_month: financeMonthISO()
             });
             billOverlay.classList.remove('visible');
@@ -4571,13 +4572,6 @@
     var expenseDateHidden = document.getElementById('expense-date');
     if (expenseDateBtn && expenseDateHidden) {
         expenseDatePicker = new IOSDatePicker(expenseDateHidden, expenseDateBtn);
-    }
-
-    var billDueDatePicker = null;
-    var billDueDateBtn = document.getElementById('bill-due-date-btn');
-    var billDueDateHidden = document.getElementById('bill-due-date');
-    if (billDueDateBtn && billDueDateHidden) {
-        billDueDatePicker = new IOSDatePicker(billDueDateHidden, billDueDateBtn);
     }
 
     var incomeDatePicker = null;

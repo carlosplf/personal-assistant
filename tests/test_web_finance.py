@@ -213,7 +213,7 @@ class TestCreateBill:
     def test_create_bill_success(self, client, auth_token):
         res = client.post(
             "/api/finance/bills",
-            json={"bill_name": "Aluguel", "budget": 1500.0, "category": "Moradia", "due_date": "2026-04-10", "reference_month": "2026-04"},
+            json={"bill_name": "Aluguel", "budget": 1500.0, "category": "Moradia", "due_day": 10, "reference_month": "2026-04"},
             headers=_auth(auth_token),
         )
         assert res.status_code == 200
@@ -221,6 +221,7 @@ class TestCreateBill:
         assert data["status"] == "created"
         assert data["bill"]["bill_name"] == "Aluguel"
         assert data["bill"]["paid"] is False
+        assert data["bill"]["due_day"] == 10
 
     def test_create_bill_minimal(self, client, auth_token):
         res = client.post(
@@ -230,6 +231,7 @@ class TestCreateBill:
         )
         assert res.status_code == 200
         assert res.json()["bill"]["category"] == "Outros"
+        assert res.json()["bill"]["due_day"] is None
 
     def test_create_bill_empty_name(self, client, auth_token):
         res = client.post(
@@ -247,13 +249,19 @@ class TestCreateBill:
         )
         assert res.status_code == 400
 
-    def test_create_bill_invalid_due_date(self, client, auth_token):
+    def test_create_bill_invalid_due_day(self, client, auth_token):
         res = client.post(
             "/api/finance/bills",
-            json={"bill_name": "X", "budget": 100, "due_date": "nope"},
+            json={"bill_name": "X", "budget": 100, "due_day": 0},
             headers=_auth(auth_token),
         )
         assert res.status_code == 400
+        res2 = client.post(
+            "/api/finance/bills",
+            json={"bill_name": "X", "budget": 100, "due_day": 32},
+            headers=_auth(auth_token),
+        )
+        assert res2.status_code == 400
 
     def test_create_bill_invalid_reference_month(self, client, auth_token):
         res = client.post(

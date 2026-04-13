@@ -1488,7 +1488,7 @@ class CreateBillRequest(BaseModel):
     bill_name: str
     budget: float
     category: str = "Outros"
-    due_date: str | None = None
+    due_day: int | None = None
     reference_month: str | None = None
 
 
@@ -1505,13 +1505,13 @@ async def create_finance_bill(
         raise HTTPException(status_code=400, detail="budget must be between 0 and 99999999.99")
     category = body.category.strip() or "Outros"
 
-    import re
-    due_date = None
-    if body.due_date:
-        if not re.match(r"^\d{4}-\d{2}-\d{2}$", body.due_date):
-            raise HTTPException(status_code=400, detail="due_date must be YYYY-MM-DD")
-        due_date = body.due_date
+    due_day = None
+    if body.due_day is not None:
+        if not (1 <= body.due_day <= 31):
+            raise HTTPException(status_code=400, detail="due_day must be between 1 and 31")
+        due_day = body.due_day
 
+    import re
     ref_month = body.reference_month
     if ref_month:
         if not re.match(r"^\d{4}-\d{2}$", ref_month):
@@ -1528,7 +1528,7 @@ async def create_finance_bill(
         bill_name=bill_name,
         budget=body.budget,
         category=category,
-        due_date=due_date,
+        due_day=due_day,
         reference_month=ref_month,
     )
     return {"status": "created", "bill": result}
@@ -1540,7 +1540,7 @@ class UpdateBillRequest(BaseModel):
     bill_name: str | None = None
     budget: float | None = None
     category: str | None = None
-    due_date: str | None = None
+    due_day: int | None = None
 
 
 @app.patch("/api/finance/bills/{bill_id}")

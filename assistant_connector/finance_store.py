@@ -110,7 +110,7 @@ class FinanceStore:
                     paid_amount TEXT NOT NULL DEFAULT '0',
                     paid INTEGER NOT NULL DEFAULT 0,
                     category TEXT NOT NULL DEFAULT 'Outros',
-                    due_date TEXT,
+                    due_day INTEGER,
                     reference_month TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
@@ -140,6 +140,35 @@ class FinanceStore:
                     ON financial_income (user_id, date)
             """)
             conn.commit()
+
+        # Migration: due_date TEXT → due_day INTEGER
+        self._migrate_due_date_to_due_day()
+
+    # ------------------------------------------------------------------
+    # Migration: due_date TEXT → due_day INTEGER
+    # ------------------------------------------------------------------
+
+    def _migrate_due_date_to_due_day(self) -> None:
+        """Add due_day column and convert existing due_date values."""
+        with self._lock, self._connect() as conn:
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(financial_bills)").fetchall()]
+            if "due_day" not in cols:
+                conn.execute("ALTER TABLE financial_bills ADD COLUMN due_day INTEGER")
+            if "due_date" in cols:
+                rows = conn.execute(
+                    "SELECT id, due_date FROM financial_bills WHERE due_date IS NOT NULL AND due_date != ''"
+                ).fetchall()
+                for row in rows:
+                    try:
+                        day = int(row[1].split("-")[2]) if "-" in row[1] else int(row[1])
+                    except (ValueError, IndexError):
+                        day = None
+                    if day is not None:
+                        conn.execute(
+                            "UPDATE financial_bills SET due_day = ? WHERE id = ?",
+                            (day, row[0]),
+                        )
+                conn.commit()
 
     # ------------------------------------------------------------------
     # Migration: encrypt existing plaintext data
@@ -307,11 +336,13 @@ class FinanceStore:
         bill_name: str,
         budget: float,
         category: str = "Outros",
-        due_date: Optional[str] = None,
+        due_day: Optional[int] = None,
         reference_month: Optional[str] = None,
     ) -> dict:
         if budget <= 0:
             raise ValueError("budget must be greater than zero")
+        if due_day is not None and not (1 <= due_day <= 31):
+            raise ValueError("due_day must be between 1 and 31")
         bill_id = uuid.uuid4().hex
         now = _utc_now_iso()
         if reference_month is None:
@@ -322,7 +353,7 @@ class FinanceStore:
                 """
                 INSERT INTO financial_bills
                   (id, user_id, bill_name, budget, paid_amount, paid, category,
-                   due_date, reference_month, created_at, updated_at)
+                   due_day, reference_month, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)
                 """,
                 (
@@ -331,7 +362,7 @@ class FinanceStore:
                     self._encrypt(str(budget)),
                     self._encrypt("0"),
                     self._encrypt(cat),
-                    due_date, reference_month, now, now,
+                    due_day, reference_month, now, now,
                 ),
             )
         return {
@@ -341,7 +372,7 @@ class FinanceStore:
             "paid_amount": 0.0,
             "paid": False,
             "category": cat,
-            "due_date": due_date,
+            "due_day": due_day,
             "reference_month": reference_month,
         }
 
@@ -357,7 +388,7 @@ class FinanceStore:
                     """
                     SELECT * FROM financial_bills
                     WHERE user_id = ? AND reference_month = ? AND paid = 0
-                    ORDER BY due_date ASC, created_at ASC
+                    ORDER BY due_day ASC, created_at ASC
                     """,
                     (user_id, reference_month),
                 ).fetchall()
@@ -366,7 +397,7 @@ class FinanceStore:
                     """
                     SELECT * FROM financial_bills
                     WHERE user_id = ? AND reference_month = ?
-                    ORDER BY due_date ASC, created_at ASC
+                    ORDER BY due_day ASC, created_at ASC
                     """,
                     (user_id, reference_month),
                 ).fetchall()
@@ -407,11 +438,18 @@ class FinanceStore:
                     raise ValueError("bill_name cannot be empty")
                 updates.append(f"{col} = ?")
                 params.append(self._encrypt(val) if val else self._encrypt(""))
-        for col in ("due_date", "reference_month"):
-            if col in kwargs:
-                val = str(kwargs[col]).strip() if kwargs[col] is not None else None
-                updates.append(f"{col} = ?")
-                params.append(val)
+        if "reference_month" in kwargs:
+            val = str(kwargs["reference_month"]).strip() if kwargs["reference_month"] is not None else None
+            updates.append("reference_month = ?")
+            params.append(val)
+        if "due_day" in kwargs:
+            day = kwargs["due_day"]
+            if day is not None:
+                day = int(day)
+                if not (1 <= day <= 31):
+                    raise ValueError("due_day must be between 1 and 31")
+            updates.append("due_day = ?")
+            params.append(day)
         if "budget" in kwargs:
             b = float(kwargs["budget"])
             if b <= 0:
@@ -452,7 +490,7 @@ class FinanceStore:
             "paid_amount": float(self._safe_decrypt(r.get("paid_amount", "0"))),
             "paid": bool(r.get("paid", 0)),
             "category": self._safe_decrypt(r.get("category", "Outros")),
-            "due_date": r.get("due_date"),
+            "due_day": r.get("due_day"),
             "reference_month": r["reference_month"],
         }
 
