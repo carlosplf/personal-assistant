@@ -1698,7 +1698,8 @@ async def finance_dashboard(
     total_paid = sum(float(b.get("paid_amount") or 0) for b in bills if b.get("paid"))
     unpaid_count = sum(1 for b in bills if not b.get("paid"))
     total_income = sum(float(i.get("amount") or 0) for i in income)
-    total_outgoing = total_expenses + total_budget
+    # Use actual paid bill amounts, not planned budget
+    total_outgoing = total_expenses + total_paid
     balance = total_income - total_outgoing
 
     # Category breakdown for expenses
