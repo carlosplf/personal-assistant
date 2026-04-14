@@ -412,7 +412,8 @@ class TestIncomeEndpoints:
         data = res.json()
         assert data["totals"]["total_income"] == 5000
         assert data["totals"]["total_expenses"] == 300
-        assert data["totals"]["balance"] == 5000 - 300
+        # Balance = income - total_paid (bills only); no bills here so balance == income
+        assert data["totals"]["balance"] == 5000
         assert len(data["income"]) == 1
 
     def test_income_isolated_by_user(self, client, auth_token, other_token):

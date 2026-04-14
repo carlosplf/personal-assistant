@@ -3523,7 +3523,7 @@
 
         // Hero cards
         financeHeroIncome.textContent = formatBRL(totals.total_income);
-        financeHeroExpenses.textContent = formatBRL(totals.total_outgoing);
+        financeHeroExpenses.textContent = formatBRL(totals.total_paid);
         financeHeroBalance.textContent = formatBRL(totals.balance);
 
         if (financeHeroBalanceCard) {
