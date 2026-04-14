@@ -1708,6 +1708,26 @@ async def finance_dashboard(
         cat_map[cat] = cat_map.get(cat, 0) + float(e.get("amount") or 0)
     category_breakdown = [{"category": k, "total": round(v, 2)} for k, v in sorted(cat_map.items(), key=lambda x: -x[1])]
 
+    # Expense pace: daily average and projected monthly total
+    import calendar
+    import datetime as _dt
+    today_str = today_iso_in_configured_timezone()
+    today_date = _dt.date.fromisoformat(today_str)
+    year, month_num = int(target_month[:4]), int(target_month[5:7])
+    days_in_month = calendar.monthrange(year, month_num)[1]
+    is_current_month = target_month == today_str[:7]
+    elapsed_days = today_date.day if is_current_month else days_in_month
+    daily_average = round(total_expenses / elapsed_days, 2) if elapsed_days > 0 else 0
+    projected_total = round(daily_average * days_in_month, 2)
+
+    pace = {
+        "daily_average": daily_average,
+        "projected_total": projected_total,
+        "elapsed_days": elapsed_days,
+        "days_in_month": days_in_month,
+        "is_current_month": is_current_month,
+    }
+
     return {
         "month": target_month,
         "expenses": expenses,
@@ -1724,6 +1744,7 @@ async def finance_dashboard(
             "balance": round(balance, 2),
         },
         "category_breakdown": category_breakdown,
+        "pace": pace,
     }
 
 

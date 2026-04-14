@@ -3532,7 +3532,7 @@
 
         renderBills(data.bills, totals);
         renderIncome(data.income);
-        renderExpensesByCategory(data.expenses, data.category_breakdown);
+        renderExpensesByCategory(data.expenses, data.category_breakdown, data.pace);
     }
 
     function renderBills(bills, totals) {
@@ -3683,7 +3683,7 @@
         }
     }
 
-    function renderExpensesByCategory(expenses, breakdown) {
+    function renderExpensesByCategory(expenses, breakdown, pace) {
         if (!expenses || expenses.length === 0) {
             financeExpensesEl.innerHTML = '<div class="finance-section-header"><h3 class="finance-section-title">💸 Despesas</h3></div>' +
                 '<div class="finance-empty-state">Nenhuma despesa registrada neste mês</div>';
@@ -3700,8 +3700,35 @@
         var catTotals = {};
         (breakdown || []).forEach(function (b) { catTotals[b.category] = b.total; });
 
+        var totalExpenses = expenses.reduce(function (s, e) { return s + (e.amount || 0); }, 0);
+
         var html = '<div class="finance-section-header"><h3 class="finance-section-title">💸 Despesas</h3>' +
-            '<span class="finance-section-badge">' + expenses.length + ' item' + (expenses.length > 1 ? 's' : '') + '</span></div>';
+            '<span class="finance-section-badge">' + expenses.length + ' item' + (expenses.length > 1 ? 's' : '') + ' · ' + formatBRL(totalExpenses) + '</span></div>';
+
+        // Expense pace card
+        if (pace) {
+            var paceElapsed = pace.elapsed_days;
+            var paceDays = pace.days_in_month;
+            var pacePct = paceDays > 0 ? Math.min((paceElapsed / paceDays) * 100, 100) : 0;
+            html += '<div class="finance-pace-card">' +
+                '<div class="finance-pace-header">📊 Ritmo de Gastos' + (pace.is_current_month ? '' : ' (mês fechado)') + '</div>' +
+                '<div class="finance-pace-progress"><div class="finance-pace-fill" style="width:' + pacePct.toFixed(0) + '%"></div></div>' +
+                '<div class="finance-pace-stats">' +
+                '<div class="finance-pace-stat">' +
+                '<span class="finance-pace-label">Média/dia</span>' +
+                '<span class="finance-pace-value">' + formatBRL(pace.daily_average) + '</span>' +
+                '</div>' +
+                '<div class="finance-pace-stat">' +
+                '<span class="finance-pace-label">' + (pace.is_current_month ? 'Projeção mensal' : 'Total do mês') + '</span>' +
+                '<span class="finance-pace-value">' + formatBRL(pace.is_current_month ? pace.projected_total : totalExpenses) + '</span>' +
+                '</div>' +
+                '<div class="finance-pace-stat">' +
+                '<span class="finance-pace-label">Dias</span>' +
+                '<span class="finance-pace-value">' + paceElapsed + '/' + paceDays + '</span>' +
+                '</div>' +
+                '</div>' +
+                '</div>';
+        }
         Object.keys(grouped).sort().forEach(function (cat) {
             var items = grouped[cat];
             var total = catTotals[cat] || items.reduce(function (s, e) { return s + e.amount; }, 0);
