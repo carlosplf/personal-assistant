@@ -4486,6 +4486,14 @@ input[type="checkbox"]:focus-visible {
     background: var(--color-assistant-bubble);
 }
 
+.task-item.followup {
+    background: rgba(249, 115, 22, 0.07);
+}
+
+.task-item.followup:hover {
+    background: rgba(249, 115, 22, 0.13);
+}
+
 .task-item.done .task-item-name {
     text-decoration: line-through;
     opacity: 0.5;

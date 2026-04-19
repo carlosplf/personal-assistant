@@ -4210,7 +4210,8 @@
 
     function buildTaskItem(task) {
         var el = document.createElement('div');
-        el.className = 'task-item' + (task.done ? ' done' : '');
+        var hasFup = (task.tags || []).some(isFollowupTag);
+        el.className = 'task-item' + (task.done ? ' done' : '') + (hasFup ? ' followup' : '');
         el.dataset.taskId = task.id;
 
         // Checkbox
