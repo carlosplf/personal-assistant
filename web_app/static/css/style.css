@@ -4487,11 +4487,11 @@ input[type="checkbox"]:focus-visible {
 }
 
 .task-item.followup {
-    background: rgba(249, 115, 22, 0.07);
+    background: linear-gradient(90deg, rgba(249, 115, 22, 0.18) 0%, rgba(249, 115, 22, 0) 33%);
 }
 
 .task-item.followup:hover {
-    background: rgba(249, 115, 22, 0.13);
+    background: linear-gradient(90deg, rgba(249, 115, 22, 0.25) 0%, rgba(249, 115, 22, 0) 33%);
 }
 
 .task-item.done .task-item-name {
