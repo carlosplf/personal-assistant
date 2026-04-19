@@ -4203,6 +4203,11 @@
         return el;
     }
 
+    function isFollowupTag(tag) {
+        var t = tag.toLowerCase().replace(/[-\s]/g, '');
+        return t === 'fup' || t === 'followup';
+    }
+
     function buildTaskItem(task) {
         var el = document.createElement('div');
         el.className = 'task-item' + (task.done ? ' done' : '');
@@ -4262,7 +4267,7 @@
         if (task.tags && task.tags.length > 0) {
             task.tags.forEach(function (tag) {
                 var pill = document.createElement('span');
-                pill.className = 'task-tag-pill';
+                pill.className = 'task-tag-pill' + (isFollowupTag(tag) ? ' followup' : '');
                 pill.textContent = tag;
                 meta.appendChild(pill);
             });
@@ -4402,7 +4407,24 @@
         }
         if (task.deadline) addMeta('Prazo', formatTaskDate(task.deadline));
         if (task.project) addMeta('Projeto', task.project);
-        if (task.tags && task.tags.length > 0) addMeta('Tags', task.tags.join(', '));
+        if (task.tags && task.tags.length > 0) {
+            var tagItem = document.createElement('div');
+            tagItem.className = 'task-detail-meta-item';
+            tagItem.innerHTML = '<span class="task-detail-meta-label">Tags</span>';
+            var tagValue = document.createElement('span');
+            tagValue.className = 'task-detail-meta-value';
+            tagValue.style.display = 'flex';
+            tagValue.style.gap = '4px';
+            tagValue.style.flexWrap = 'wrap';
+            task.tags.forEach(function (tag) {
+                var pill = document.createElement('span');
+                pill.className = 'task-tag-pill' + (isFollowupTag(tag) ? ' followup' : '');
+                pill.textContent = tag;
+                tagValue.appendChild(pill);
+            });
+            tagItem.appendChild(tagValue);
+            grid.appendChild(tagItem);
+        }
         if (task.always_on) addMeta('Always ON', '📌 Sim');
 
         var obsBlock = document.getElementById('task-detail-observations-block');
