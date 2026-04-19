@@ -3462,6 +3462,35 @@ input[type="checkbox"]:focus-visible {
 
 .finance-hero-balance.negative .finance-hero-value { color: #dc2626; }
 
+/* ---- Chart cards ---- */
+.finance-charts-row {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.finance-chart-card {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 18px 16px 12px;
+}
+
+.finance-chart-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    margin-bottom: 12px;
+}
+
+.finance-chart-card canvas {
+    width: 100% !important;
+    max-height: 220px;
+}
+
 /* ---- Section headers ---- */
 .finance-section-header {
     display: flex;
@@ -4098,6 +4127,11 @@ input[type="checkbox"]:focus-visible {
         gap: 8px;
     }
 
+    .finance-charts-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
     .finance-hero-card {
         padding: 14px 16px;
         display: flex;
@@ -4479,7 +4513,9 @@ input[type="checkbox"]:focus-visible {
     gap: 8px;
     padding: 9px 16px 9px 30px;
     border-bottom: 1px solid var(--color-border);
-    transition: background 0.15s;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.15s, transform 0.18s ease;
 }
 
 .task-item:hover {
@@ -4487,11 +4523,19 @@ input[type="checkbox"]:focus-visible {
 }
 
 .task-item.followup {
-    background: linear-gradient(90deg, rgba(249, 115, 22, 0.18) 0%, rgba(249, 115, 22, 0) 33%);
+    background: linear-gradient(90deg, rgba(249, 115, 22, 0.34) 0%, rgba(251, 146, 60, 0.2) 18%, #ffffff 34%, #ffffff 100%);
 }
 
 .task-item.followup:hover {
-    background: linear-gradient(90deg, rgba(249, 115, 22, 0.25) 0%, rgba(249, 115, 22, 0) 33%);
+    background: linear-gradient(90deg, rgba(249, 115, 22, 0.42) 0%, rgba(251, 146, 60, 0.25) 18%, #ffffff 34%, #ffffff 100%);
+}
+
+.task-item.swipe-active {
+    transition: none;
+}
+
+.task-item.swipe-ready {
+    box-shadow: inset 4px 0 0 rgba(249, 115, 22, 0.55);
 }
 
 .task-item.done .task-item-name {
@@ -4778,6 +4822,15 @@ input[type="checkbox"]:focus-visible {
 }
 
 @media (max-width: 767px) {
+    .task-item {
+        padding-left: 16px;
+        touch-action: pan-y;
+    }
+
+    .task-checkbox {
+        display: none;
+    }
+
     /* Always show delete btn on mobile */
     .task-item .task-delete-btn {
         opacity: 0.45;

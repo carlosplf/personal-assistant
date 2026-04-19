@@ -128,6 +128,10 @@
     const financeBillsEl = document.getElementById('finance-bills');
     const financeIncomeEl = document.getElementById('finance-income');
     const financeExpensesEl = document.getElementById('finance-expenses');
+    const financeBarCanvas = document.getElementById('finance-bar-chart');
+    const financeAreaCanvas = document.getElementById('finance-area-chart');
+    let financeBarChartInstance = null;
+    let financeAreaChartInstance = null;
     let financeMonth = new Date();
     let financeLoading = false;
 
@@ -3533,6 +3537,154 @@
         renderBills(data.bills, totals);
         renderIncome(data.income);
         renderExpensesByCategory(data.expenses, data.category_breakdown, data.pace);
+        renderFinanceCharts(data);
+    }
+
+    function renderFinanceCharts(data) {
+        var totals = data.totals;
+
+        // Destroy previous instances
+        if (financeBarChartInstance) { financeBarChartInstance.destroy(); financeBarChartInstance = null; }
+        if (financeAreaChartInstance) { financeAreaChartInstance.destroy(); financeAreaChartInstance = null; }
+
+        // --- Bar chart: Planejado vs Realizado vs Receita ---
+        if (financeBarCanvas) {
+            var barCtx = financeBarCanvas.getContext('2d');
+            financeBarChartInstance = new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Planejado', 'Realizado', 'Receita'],
+                    datasets: [{
+                        data: [totals.total_budget, totals.total_paid, totals.total_income],
+                        backgroundColor: [
+                            'rgba(22, 99, 222, 0.75)',
+                            'rgba(245, 158, 11, 0.75)',
+                            'rgba(34, 197, 94, 0.75)',
+                        ],
+                        borderColor: [
+                            'rgba(22, 99, 222, 1)',
+                            'rgba(245, 158, 11, 1)',
+                            'rgba(34, 197, 94, 1)',
+                        ],
+                        borderWidth: 1.5,
+                        borderRadius: 6,
+                        maxBarThickness: 64,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 1.8,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function (ctx) { return formatBRL(ctx.raw); },
+                            },
+                        },
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function (v) { return 'R$ ' + Number(v).toLocaleString('pt-BR'); },
+                                font: { size: 11 },
+                            },
+                            grid: { color: 'rgba(0,0,0,0.05)' },
+                        },
+                        x: {
+                            ticks: { font: { size: 12, weight: '600' } },
+                            grid: { display: false },
+                        },
+                    },
+                },
+            });
+        }
+
+        // --- Area chart: Evolução diária de despesas ---
+        if (financeAreaCanvas) {
+            var pace = data.pace;
+            var daysInMonth = pace.days_in_month;
+            var maxDay = pace.is_current_month ? pace.elapsed_days : daysInMonth;
+
+            // Build daily totals from expense list
+            var dailyTotals = {};
+            (data.expenses || []).forEach(function (e) {
+                var day = parseInt((e.date || '').split('-')[2], 10);
+                if (day && day <= maxDay) {
+                    dailyTotals[day] = (dailyTotals[day] || 0) + parseFloat(e.amount || 0);
+                }
+            });
+
+            // Build cumulative array
+            var labels = [];
+            var cumulative = [];
+            var runningTotal = 0;
+            for (var d = 1; d <= maxDay; d++) {
+                labels.push(d);
+                runningTotal += (dailyTotals[d] || 0);
+                cumulative.push(Math.round(runningTotal * 100) / 100);
+            }
+
+            var areaCtx = financeAreaCanvas.getContext('2d');
+            var gradient = areaCtx.createLinearGradient(0, 0, 0, financeAreaCanvas.clientHeight || 200);
+            gradient.addColorStop(0, 'rgba(22, 99, 222, 0.25)');
+            gradient.addColorStop(1, 'rgba(22, 99, 222, 0.02)');
+
+            financeAreaChartInstance = new Chart(areaCtx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Acumulado',
+                        data: cumulative,
+                        borderColor: '#1663DE',
+                        backgroundColor: gradient,
+                        borderWidth: 2.5,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: maxDay <= 15 ? 4 : 2,
+                        pointBackgroundColor: '#fff',
+                        pointBorderColor: '#1663DE',
+                        pointBorderWidth: 2,
+                        pointHoverRadius: 6,
+                        pointHoverBackgroundColor: '#1663DE',
+                        pointHoverBorderColor: '#fff',
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 1.8,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                title: function (items) { return 'Dia ' + items[0].label; },
+                                label: function (ctx) { return formatBRL(ctx.raw); },
+                            },
+                        },
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function (v) { return 'R$ ' + Number(v).toLocaleString('pt-BR'); },
+                                font: { size: 11 },
+                            },
+                            grid: { color: 'rgba(0,0,0,0.05)' },
+                        },
+                        x: {
+                            ticks: {
+                                font: { size: 11 },
+                                maxTicksLimit: 15,
+                            },
+                            grid: { display: false },
+                        },
+                    },
+                },
+            });
+        }
     }
 
     function renderBills(bills, totals) {
@@ -4208,6 +4360,113 @@
         return t === 'fup' || t === 'followup';
     }
 
+    function isMobileViewport() {
+        return window.matchMedia('(max-width: 767px)').matches;
+    }
+
+    function animateTaskCompletion(nameSpan, onComplete) {
+        nameSpan.classList.add('task-striking');
+        setTimeout(onComplete, 580);
+    }
+
+    function resetTaskSwipeState(item) {
+        item.classList.remove('swipe-active');
+        item.classList.remove('swipe-ready');
+        item.style.transform = '';
+    }
+
+    function attachTaskSwipeGesture(item, task, nameSpan) {
+        var startX = 0;
+        var startY = 0;
+        var currentX = 0;
+        var tracking = false;
+        var horizontal = false;
+        var suppressClick = false;
+        var threshold = 88;
+        var maxOffset = 118;
+
+        item.addEventListener('click', function (e) {
+            if (!suppressClick) return;
+            e.preventDefault();
+            e.stopPropagation();
+        }, true);
+
+        item.addEventListener('touchstart', function (e) {
+            if (!isMobileViewport()) return;
+            if (e.touches.length !== 1) return;
+            if (e.target.closest('.task-delete-btn')) return;
+            tracking = true;
+            horizontal = false;
+            currentX = 0;
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+        }, { passive: true });
+
+        item.addEventListener('touchmove', function (e) {
+            var touch;
+            var deltaX;
+            var deltaY;
+            var allowedX;
+
+            if (!tracking || !isMobileViewport()) return;
+            touch = e.touches[0];
+            deltaX = touch.clientX - startX;
+            deltaY = touch.clientY - startY;
+
+            if (!horizontal) {
+                if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) return;
+                if (Math.abs(deltaX) <= Math.abs(deltaY)) {
+                    tracking = false;
+                    resetTaskSwipeState(item);
+                    return;
+                }
+                horizontal = true;
+                item.classList.add('swipe-active');
+            }
+
+            allowedX = task.done ? Math.min(0, deltaX) : Math.max(0, deltaX);
+            currentX = Math.max(Math.min(allowedX, maxOffset), -maxOffset);
+            item.style.transform = 'translateX(' + currentX + 'px)';
+            item.classList.toggle('swipe-ready', Math.abs(currentX) >= threshold);
+
+            if (Math.abs(currentX) > 0) e.preventDefault();
+        }, { passive: false });
+
+        function finishSwipe() {
+            var movedEnough;
+            var shouldToggle;
+
+            if (!tracking && !horizontal) return;
+            movedEnough = Math.abs(currentX) > 12;
+            shouldToggle = Math.abs(currentX) >= threshold && ((!task.done && currentX > 0) || (task.done && currentX < 0));
+            tracking = false;
+            horizontal = false;
+            resetTaskSwipeState(item);
+
+            if (!movedEnough) return;
+            suppressClick = true;
+            setTimeout(function () {
+                suppressClick = false;
+            }, 350);
+
+            if (!shouldToggle) return;
+            if (task.done) {
+                toggleTaskDone(task.id, false);
+            } else {
+                animateTaskCompletion(nameSpan, function () {
+                    toggleTaskDone(task.id, true);
+                });
+            }
+        }
+
+        item.addEventListener('touchend', finishSwipe);
+        item.addEventListener('touchcancel', function () {
+            tracking = false;
+            horizontal = false;
+            resetTaskSwipeState(item);
+        });
+    }
+
     function buildTaskItem(task) {
         var el = document.createElement('div');
         var hasFup = (task.tags || []).some(isFollowupTag);
@@ -4223,8 +4482,7 @@
             if (cb.checked) {
                 cb.classList.add('task-checking');
                 setTimeout(function () { cb.classList.remove('task-checking'); }, 300);
-                nameSpan.classList.add('task-striking');
-                setTimeout(function () { toggleTaskDone(task.id, true); }, 580);
+                animateTaskCompletion(nameSpan, function () { toggleTaskDone(task.id, true); });
             } else {
                 toggleTaskDone(task.id, false);
             }
@@ -4280,6 +4538,7 @@
         }
 
         el.appendChild(meta);
+        attachTaskSwipeGesture(el, task, nameSpan);
 
         return el;
     }
